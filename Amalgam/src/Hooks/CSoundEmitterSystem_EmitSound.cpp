@@ -101,7 +101,7 @@ static inline bool ShouldBlockSound(const char* pSound)
 		return false;
 
 	std::string sSound = pSound;
-	std::transform(sSound.begin(), sSound.end(), sSound.begin(), ::tolower);
+	std::transform(sSound.begin(), sSound.end(), sSound.begin(), [](unsigned char c) { return std::tolower(c); });
 	auto CheckSound = [&](const std::vector<const char*>& vSounds, int iFlag = -1)
 		{
 			if (/*iFlag == -1 ||*/ Vars::Misc::Sound::Block.Value & iFlag)

@@ -1981,7 +1981,7 @@ inline bool FSDropdown(const char *sLabel, std::string *pVar,
     {
       std::string sSearch = sInput;
       std::transform(sSearch.begin(), sSearch.end(), sSearch.begin(),
-                     ::tolower);
+                     [](unsigned char c) { return std::tolower(c); });
       for (auto &sEntry : vEntries) {
         if (FNV1A::Hash32(sEntry) == FNV1A::Hash32Const("##Divider")) {
           vValid.push_back(sEntry);
@@ -1990,7 +1990,7 @@ inline bool FSDropdown(const char *sLabel, std::string *pVar,
 
         std::string sEntryLower = sEntry;
         std::transform(sEntryLower.begin(), sEntryLower.end(),
-                       sEntryLower.begin(), ::tolower);
+                       sEntryLower.begin(), [](unsigned char c) { return std::tolower(c); });
         if (sEntryLower.find(sSearch) != std::string::npos)
           vValid.push_back(sEntry);
       }
@@ -2458,8 +2458,8 @@ inline std::string VK2STR(short key) {
   if (char buffer[16]; GetKeyNameText(MapVirtualKey(key, MAPVK_VK_TO_VSC) << 16,
                                       buffer, sizeof(buffer))) {
     str = buffer;
-    std::transform(str.begin(), str.end(), str.begin(), ::tolower);
-    str.erase(std::remove_if(str.begin(), str.end(), ::isspace), str.end());
+    std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return std::tolower(c); });
+    str.erase(std::remove_if(str.begin(), str.end(), [](unsigned char c) { return std::isspace(c); }), str.end());
   }
   // else if (Vars::Debug::Info.Value)
   //	str = std::format("{:#x}", key);
@@ -3032,7 +3032,7 @@ inline void DrawBindInfo(ConfigVar<T> &var, T &val, const std::string &sBind,
       if (bPopup) {                                                            \
         std::string sBind = iBindOverride != -1 ? var.m_vNames[iBindOverride]  \
                                                 : var.m_vNames.back();         \
-        std::transform(sBind.begin(), sBind.end(), sBind.begin(), ::tolower);  \
+        std::transform(sBind.begin(), sBind.end(), sBind.begin(), [](unsigned char c) { return std::tolower(c); });  \
         iFlags = iVarFlags; /*get rid of any visual flags*/                    \
         if (FNV1A::Hash32Const(#function) ==                                   \
             FNV1A::Hash32Const("FColorPicker"))                                \

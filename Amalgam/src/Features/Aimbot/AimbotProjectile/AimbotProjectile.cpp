@@ -2074,23 +2074,23 @@ static inline void DrawVisuals(int iResult, Target_t &tTarget,
 
       if (bPlayerPath) {
         if (Vars::Colors::PlayerPathIgnoreZ.Value.a)
-          G::PathStorage.emplace_back(
+          G::PathStorage.push_back({
               vPlayerPath,
               Vars::Visuals::Simulation::Timed.Value
                   ? -int(vPlayerPath.size())
                   : I::GlobalVars->curtime +
                         Vars::Visuals::Simulation::DrawDuration.Value,
               Vars::Colors::PlayerPathIgnoreZ.Value,
-              Vars::Visuals::Simulation::PlayerPath.Value);
+              Vars::Visuals::Simulation::PlayerPath.Value });
         if (Vars::Colors::PlayerPath.Value.a)
-          G::PathStorage.emplace_back(
+          G::PathStorage.push_back({
               vPlayerPath,
               Vars::Visuals::Simulation::Timed.Value
                   ? -int(vPlayerPath.size())
                   : I::GlobalVars->curtime +
                         Vars::Visuals::Simulation::DrawDuration.Value,
               Vars::Colors::PlayerPath.Value,
-              Vars::Visuals::Simulation::PlayerPath.Value, true);
+              Vars::Visuals::Simulation::PlayerPath.Value, true });
       }
       if (bProjectilePath) {
         if (Vars::Colors::ProjectilePathIgnoreZ.Value.a)
@@ -2178,6 +2178,7 @@ bool CAimbotProjectile::RunMain(CTFPlayer *pLocal, CTFWeaponBase *pWeapon,
     defined(SPLASH_DEBUG3) || defined(SPLASH_DEBUG4)
   G::BoxStorage.clear();
 #endif
+  Target_t* pBestSmooth = nullptr;
   for (auto &tTarget : vTargets) {
     m_flTimeTo = std::numeric_limits<float>::max();
     m_vPlayerPath.clear();
@@ -2211,11 +2212,9 @@ bool CAimbotProjectile::RunMain(CTFPlayer *pLocal, CTFWeaponBase *pWeapon,
     if (!iResult)
       continue;
     if (iResult == 2) {
-      G::AimTarget = {tTarget.m_pEntity->entindex(), I::GlobalVars->tickcount,
-                      0};
-      DrawVisuals(iResult, tTarget, m_vPlayerPath, m_vProjectilePath, m_vBoxes);
-      Aim(pCmd, tTarget.m_vAngleTo);
-      break;
+	  if (!pBestSmooth)
+		  pBestSmooth = &tTarget;
+      continue;
     }
 
     G::AimTarget = {tTarget.m_pEntity->entindex(), I::GlobalVars->tickcount};
@@ -2306,6 +2305,14 @@ bool CAimbotProjectile::RunMain(CTFPlayer *pLocal, CTFWeaponBase *pWeapon,
       }
     }
     return true;
+  }
+
+  if (pBestSmooth && G::Attacking != 1)
+  {
+	  auto& tTarget = *pBestSmooth;
+	  G::AimTarget = { tTarget.m_pEntity->entindex(), I::GlobalVars->tickcount, 0 };
+	  DrawVisuals(2, tTarget, m_vPlayerPath, m_vProjectilePath, m_vBoxes);
+	  Aim(pCmd, tTarget.m_vAngleTo);
   }
 
   return false;

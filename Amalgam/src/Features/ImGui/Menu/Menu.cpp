@@ -4009,7 +4009,7 @@ void CMenu::MenuSearch(std::string sSearch) {
       uCurrHash != uStaticHash) {
     std::string sSearch2 = sSearch;
     std::transform(sSearch2.begin(), sSearch2.end(), sSearch2.begin(),
-                   ::tolower);
+                   [](unsigned char c) { return std::tolower(c); });
 
     vVars.clear();
     for (auto &pBase : G::Vars) {
@@ -4028,7 +4028,7 @@ void CMenu::MenuSearch(std::string sSearch) {
         if (auto iFind = sSearch3.find("##"); iFind != std::string::npos)
           sSearch3 = sSearch3.replace(iFind, strlen("##"), "");
         std::transform(sSearch3.begin(), sSearch3.end(), sSearch3.begin(),
-                       ::tolower);
+                       [](unsigned char c) { return std::tolower(c); });
         if (sSearch3.find(sSearch2) != std::string::npos) {
           vVars.push_back(pBase);
           break;

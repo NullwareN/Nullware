@@ -9,6 +9,7 @@
 #include "AutoRocketJump/AutoRocketJump.h"
 #include "../Misc/Misc.h"
 #include "../Visuals/Visuals.h"
+#include "../Ticks/Ticks.h"
 
 bool CAimbot::ShouldRun(CTFPlayer* pLocal, CTFWeaponBase* pWeapon)
 {
@@ -71,6 +72,7 @@ void CAimbot::RunMain(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, CUserCmd* pCmd)
 
 void CAimbot::Run(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, CUserCmd* pCmd)
 {
+	F::Ticks.SaveShootPos(pLocal);
 	Store(false);
 
 	RunMain(pLocal, pWeapon, pCmd);

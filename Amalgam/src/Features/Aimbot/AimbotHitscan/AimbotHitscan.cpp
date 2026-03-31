@@ -5,6 +5,7 @@
 #include "../../Ticks/Ticks.h"
 #include "../../Visuals/Visuals.h"
 #include "../Aimbot.h"
+#include "../../../SDK/Definitions/Misc/Studio.h"
 
 static inline std::vector<Target_t> GetTargets(CTFPlayer *pLocal,
                                                CTFWeaponBase *pWeapon) {
@@ -338,7 +339,25 @@ int CAimbotHitscan::CanHit(Target_t &tTarget, CTFPlayer *pLocal,
           : Vec3();
 
   // if we're doubletapping, we can't change viewangles so work around that
+  // if we're doubletapping, we can't change viewangles so work around that
   static int iTargetBone = 0;
+  static int iLastTickBone = -1;
+  if (iLastTickBone != I::GlobalVars->tickcount)
+  {
+	  iTargetBone = 0;
+	  CStudioHdr* pHDR = tTarget.m_pEntity->As<CBaseAnimating>()->GetModelPtr();
+	  if (pHDR)
+	  {
+		  mstudiohitboxset_t* set = pHDR->pHitboxSet(tTarget.m_pEntity->As<CBaseAnimating>()->m_nHitboxSet());
+		  if (set)
+		  {
+			  mstudiobbox_t* headBox = set->pHitbox(HITBOX_HEAD);
+			  if (headBox)
+				  iTargetBone = headBox->bone;
+		  }
+	  }
+	  iLastTickBone = I::GlobalVars->tickcount;
+  }
   Vec3 *pDoubletapAngle = F::Ticks.GetShootAngle();
   if (pDoubletapAngle && tTarget.m_iTargetType == TargetEnum::Player) {
     std::sort(vRecords.begin(), vRecords.end(),
@@ -811,15 +830,15 @@ static inline void DrawVisuals(CTFPlayer *pLocal, Target_t &tTarget,
                            &vForward);
 
         if (Vars::Colors::LineIgnoreZ.Value.a)
-          G::LineStorage.emplace_back(
+          G::LineStorage.push_back({
               std::pair<Vec3, Vec3>(vEyePos, vEyePos + vForward * flDist),
               I::GlobalVars->curtime + Vars::Visuals::Line::DrawDuration.Value,
-              Vars::Colors::LineIgnoreZ.Value);
+              Vars::Colors::LineIgnoreZ.Value });
         if (Vars::Colors::Line.Value.a)
-          G::LineStorage.emplace_back(
+          G::LineStorage.push_back({
               std::pair<Vec3, Vec3>(vEyePos, vEyePos + vForward * flDist),
               I::GlobalVars->curtime + Vars::Visuals::Line::DrawDuration.Value,
-              Vars::Colors::Line.Value, true);
+              Vars::Colors::Line.Value, true });
       }
       if (bBoxes) {
         auto vBoxes =
@@ -898,6 +917,7 @@ void CAimbotHitscan::Run(CTFPlayer *pLocal, CTFWeaponBase *pWeapon,
     G::AimTarget = {vTargets.front().m_pEntity->entindex(),
                     I::GlobalVars->tickcount, 0};
 
+  Target_t* pBestSmooth = nullptr;
   for (auto &tTarget : vTargets) {
     if (nWeaponID == TF_WEAPON_MEDIGUN &&
         pWeapon->As<CWeaponMedigun>()->m_hHealingTarget().Get() ==
@@ -911,13 +931,9 @@ void CAimbotHitscan::Run(CTFPlayer *pLocal, CTFWeaponBase *pWeapon,
     if (!iResult)
       continue;
     if (iResult == 2) {
-      G::AimTarget = {tTarget.m_pEntity->entindex(), I::GlobalVars->tickcount,
-                      0};
-      Aim(pCmd, tTarget.m_vAngleTo);
-      if (Vars::Aimbot::General::AutoShoot.Value && G::CanPrimaryAttack &&
-          ShouldFire(pLocal, pWeapon, pCmd, tTarget))
-        pCmd->buttons |= IN_ATTACK;
-      break;
+      if (!pBestSmooth)
+		  pBestSmooth = &tTarget;
+      continue;
     }
 
     G::AimTarget = {tTarget.m_pEntity->entindex(), I::GlobalVars->tickcount};
@@ -966,6 +982,7 @@ void CAimbotHitscan::Run(CTFPlayer *pLocal, CTFWeaponBase *pWeapon,
         pCmd->tick_count = TIME_TO_TICKS(tTarget.m_pRecord->m_flSimTime) +
                            TIME_TO_TICKS(F::Backtrack.GetFakeInterp());
     }
+    F::Aimbot.m_bRan = true;
     DrawVisuals(pLocal, tTarget, nWeaponID);
 
     Aim(pCmd, tTarget.m_vAngleTo);
@@ -977,6 +994,17 @@ void CAimbotHitscan::Run(CTFPlayer *pLocal, CTFWeaponBase *pWeapon,
         G::SilentAngles = false, G::PSilentAngles = true;
       }
     }
-    break;
+    return;
+  }
+
+  if (pBestSmooth && G::Attacking != 1)
+  {
+	  auto& tTarget = *pBestSmooth;
+	  G::AimTarget = { tTarget.m_pEntity->entindex(), I::GlobalVars->tickcount, 0 };
+	  DrawVisuals(pLocal, tTarget, nWeaponID);
+	  Aim(pCmd, tTarget.m_vAngleTo);
+	  if (Vars::Aimbot::General::AutoShoot.Value && G::CanPrimaryAttack &&
+		  ShouldFire(pLocal, pWeapon, pCmd, tTarget))
+		  pCmd->buttons |= IN_ATTACK;
   }
 }

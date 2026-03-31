@@ -71,10 +71,10 @@ ADD_FEATURE_CUSTOM(CMemory, Memory, U);
 
 #define VIRTUAL(name, type, index, ...) inline type name() \
 { \
-	return U::Memory.CallVirtual<index, type>(##__VA_ARGS__); \
+	return U::Memory.CallVirtual<index, type>(__VA_ARGS__); \
 }
 
-#define VIRTUAL_ARGS(name, type, index, args, ...) inline type name##args \
+#define VIRTUAL_ARGS(name, type, index, args, ...) inline type name args \
 { \
-	return U::Memory.CallVirtual<index, type>(##__VA_ARGS__); \
+	return U::Memory.CallVirtual<index, type>(__VA_ARGS__); \
 }

@@ -1,6 +1,7 @@
 #include "AimbotMelee.h"
 
 #include "../Aimbot.h"
+#include "../../../SDK/Definitions/Misc/Studio.h"
 #include "../../Simulation/MovementSimulation/MovementSimulation.h"
 #include "../../EnginePrediction/EnginePrediction.h"
 #include "../../Ticks/Ticks.h"
@@ -581,6 +582,7 @@ void CAimbotMelee::Run(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, CUserCmd* pCmd
 		DrawVisuals(pLocal, pWeapon, pCmd, tTarget, m_mPaths);
 
 		Aim(pCmd, tTarget.m_vAngleTo);
+		F::Aimbot.m_bRan = true;
 		break;
 	}
 }

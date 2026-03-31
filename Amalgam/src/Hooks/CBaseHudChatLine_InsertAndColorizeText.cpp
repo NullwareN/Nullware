@@ -66,8 +66,8 @@ MAKE_HOOK(CBaseHudChatLine_InsertAndColorizeText, S::CBaseHudChatLine_InsertAndC
 		{
 			{
 				std::string sReplace2 = sReplace;
-				std::transform(sFind.begin(), sFind.end(), sFind.begin(), ::tolower);
-				std::transform(sReplace2.begin(), sReplace2.end(), sReplace2.begin(), ::tolower);
+				std::transform(sFind.begin(), sFind.end(), sFind.begin(), [](unsigned char c) { return std::tolower(c); });
+				std::transform(sReplace2.begin(), sReplace2.end(), sReplace2.begin(), [](unsigned char c) { return std::tolower(c); });
 				if (FNV1A::Hash32(sFind.c_str()) == FNV1A::Hash32(sReplace2.c_str()))
 					continue;
 			}
@@ -76,7 +76,7 @@ MAKE_HOOK(CBaseHudChatLine_InsertAndColorizeText, S::CBaseHudChatLine_InsertAndC
 			while (true)
 			{
 				std::string sMessage2 = sMessage;
-				std::transform(sMessage2.begin(), sMessage2.end(), sMessage2.begin(), ::tolower);
+				std::transform(sMessage2.begin(), sMessage2.end(), sMessage2.begin(), [](unsigned char c) { return std::tolower(c); });
 
 				auto iFind = sMessage2.find(sFind, iPos);
 				if (iFind == std::string::npos)
