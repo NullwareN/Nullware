@@ -1,17 +1,17 @@
 <div align="center">
 
-<img src=".github/assets/amalgam_combo.png" alt="Amalgam V2 Logo" height="120">
+<img src=".github/assets/nullware_combo.png" alt="Nullware Logo" height="120">
 
-# 🚀 Amalgam V2
+# 🚀 Nullware
 
-Modernized and enhanced version of the original Amalgam project.
+Modernized and enhanced version of the original Nullware project.
 
 **Credit:**  
-Original Project by [rei-2](https://github.com/rei-2/Amalgam)
+Original Project by [rei-2](https://github.com/rei-2/Nullware)
 
-[![Stars](https://img.shields.io/github/stars/Devtom968/Amalgam-v2?style=for-the-badge&logo=github)](https://github.com/Devtom968/Amalgam-v2/stargazers)
-[![Forks](https://img.shields.io/github/forks/Devtom968/Amalgam-v2?style=for-the-badge&logo=github)](https://github.com/Devtom968/Amalgam-v2/network)
-[![Commit Activity](https://img.shields.io/github/commit-activity/m/Devtom968/Amalgam-v2?style=for-the-badge)](https://github.com/Devtom968/Amalgam-v2/commits)
+[![Stars](https://img.shields.io/github/stars/NullwareN/Nullware?style=for-the-badge&logo=github)](https://github.com/NullwareN/Nullware/stargazers)
+[![Forks](https://img.shields.io/github/forks/NullwareN/Nullware?style=for-the-badge&logo=github)](https://github.com/NullwareN/Nullware/network)
+[![Commit Activity](https://img.shields.io/github/commit-activity/m/NullwareN/Nullware?style=for-the-badge)](https://github.com/NullwareN/Nullware/commits)
 [![License](https://img.shields.io/badge/license-DWYW-blue?style=for-the-badge)]()
 
 💬 **Community Discord**  
@@ -37,13 +37,13 @@ https://discord.gg/VfVSZTHgsq
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/Devtom968/Amalgam-v2.git
+git clone https://github.com/NullwareN/Nullware.git
 ```
 
 ### 2. Open the solution
 
 ```
-Amalgam-v2.sln
+Nullware.sln
 ```
 
 ### 3. Build using Visual Studio
