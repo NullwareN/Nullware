@@ -4,7 +4,6 @@
 #include "../Backtrack/Backtrack.h"
 #include "../EnginePrediction/EnginePrediction.h"
 #include "../PacketManip/AntiAim/AntiAim.h"
-#include <algorithm>
 
 void CTicks::Reset() {
   m_bSpeedhack = m_bDoubletap = m_bRecharge = m_bWarp = false;
@@ -12,12 +11,11 @@ void CTicks::Reset() {
 }
 
 void CTicks::Recharge(CTFPlayer *pLocal) {
-  if (!m_bGoalReached || m_bDoubletap || m_bWarp || m_bSpeedhack)
+  if (!m_bGoalReached)
     return;
 
-  m_bRecharge = false;
+  bool bPassive = m_bRecharge = false;
 
-  bool bPassive = false;
   static float flPassiveTime = 0.f;
   flPassiveTime = std::max(flPassiveTime - TICK_INTERVAL, -TICK_INTERVAL);
   if (Vars::Doubletap::PassiveRecharge.Value && 0.f >= flPassiveTime) {
@@ -25,33 +23,17 @@ void CTicks::Recharge(CTFPlayer *pLocal) {
     flPassiveTime += 1.f / Vars::Doubletap::PassiveRecharge.Value;
   }
 
-  if (m_iDeficit > 0) {
-    m_iDeficit--;
-    m_iShiftedTicks++; // Gain back ticks lost to deficit
+  if (m_iDeficit) {
     bPassive = true;
+    m_iDeficit--, m_iShiftedTicks--;
   }
 
-  if (!Vars::Doubletap::RechargeTicks.Value && !bPassive)
-    return;
-
-  if (m_iShiftedTicks >= Vars::Doubletap::RechargeLimit.Value)
-    return;
-
-  // Don't recharge if we are attacking or recently attacked
-  if (G::Attacking == 1 || G::Reloading)
+  if (!Vars::Doubletap::RechargeTicks.Value && !bPassive || m_bDoubletap ||
+      m_bWarp || m_iShiftedTicks == m_iMaxShift || m_bSpeedhack)
     return;
 
   m_bRecharge = true;
-
-  // Fast recharge logic: If standing still, recharge up to 2 ticks per frame
-  int iRechargeAmount = 1;
-  const float flVel = pLocal->m_vecVelocity().Length2D();
-  if (flVel < 5.0f &&
-      (m_iShiftedTicks + 2 <= Vars::Doubletap::RechargeLimit.Value)) {
-    iRechargeAmount = 2;
-  }
-
-  m_iShiftedGoal = m_iShiftedTicks + iRechargeAmount;
+  m_iShiftedGoal = m_iShiftedTicks + 1;
 }
 
 void CTicks::Warp() {
@@ -68,33 +50,25 @@ void CTicks::Warp() {
       std::max(m_iShiftedTicks - Vars::Doubletap::WarpRate.Value + 1, 0);
 }
 
-bool CTicks::CanDoubletap(CTFPlayer *pLocal, CTFWeaponBase *pWeapon,
-                          CUserCmd *pCmd) {
-  if (!Vars::Doubletap::Doubletap.Value || m_iWait || m_bWarp || m_bRecharge ||
-      m_bSpeedhack || F::AutoRocketJump.IsRunning())
-    return false;
-
-  int iTicks = std::min(m_iShiftedTicks + 1, 22);
-  if (!(iTicks >= Vars::Doubletap::TickLimit.Value ||
-        pWeapon && GetShotsWithinPacket(pWeapon, iTicks) > 1))
-    return false;
-
-  if (G::PrimaryWeaponType == EWeaponType::MELEE)
-    return (pCmd->buttons & IN_ATTACK) != 0;
-
-  bool bCanAttack = G::CanPrimaryAttack || G::Reloading;
-  if (!bCanAttack && !m_bDoubletap)
-    return false;
-
-  return G::Attacking == 1 || m_bDoubletap;
-}
-
 void CTicks::Doubletap(CTFPlayer *pLocal, CUserCmd *pCmd) {
   if (!m_bGoalReached)
     return;
 
+  if (!Vars::Doubletap::Doubletap.Value || m_iWait || m_bWarp || m_bRecharge ||
+      m_bSpeedhack)
+    return;
+
+  int iTicks = std::min(m_iShiftedTicks + 1, 22);
   auto pWeapon = H::Entities.GetWeapon();
-  if (!pWeapon || !CanDoubletap(pLocal, pWeapon, pCmd))
+  if (!(iTicks >= Vars::Doubletap::TickLimit.Value ||
+        pWeapon && GetShotsWithinPacket(pWeapon, iTicks) > 1))
+    return;
+
+  bool bAttacking = G::PrimaryWeaponType == EWeaponType::MELEE
+                        ? pCmd->buttons & IN_ATTACK
+                        : G::Attacking;
+  if (!G::CanPrimaryAttack && !G::Reloading || !bAttacking && !m_bDoubletap ||
+      F::AutoRocketJump.IsRunning())
     return;
 
   m_bDoubletap = true;
@@ -202,7 +176,7 @@ void CTicks::Move(float accumulated_extra_samples, bool bFinalTick) {
     m_iShiftedGoal = 0;
   }
 
-  m_iShiftedGoal = std::min(std::max(m_iShiftedGoal, 0), m_iMaxShift);
+  m_iShiftedGoal = std::clamp(m_iShiftedGoal, 0, m_iMaxShift);
   if (m_iShiftedTicks > m_iShiftedGoal) // normal use/doubletap/teleport
   {
     m_iShiftStart = m_iShiftedTicks - 1;
@@ -217,10 +191,6 @@ void CTicks::Move(float accumulated_extra_samples, bool bFinalTick) {
     m_bShifting = m_bAntiWarp = m_bTimingUnsure = false;
     if (m_bWarp)
       m_iDeficit = 0;
-    else if (m_bDoubletap)
-      m_iDeficit += std::max(m_iShiftStart - m_iShiftedGoal -
-                                 (m_iShiftStart - m_iShiftedTicks),
-                             0);
 
     m_bDoubletap = m_bWarp = false;
   } else // else recharge, run once if we have any choked ticks
@@ -241,41 +211,33 @@ void CTicks::MoveManage() {
 
   if (!m_bRecharge)
     m_iWait = std::max(m_iWait, 0);
-
-  auto pWeapon = H::Entities.GetWeapon();
-  if (pWeapon) {
-    bool bValid = ValidWeapon(pWeapon);
-    if (!bValid)
-      m_iWait = -1;
-    else {
-      switch (pWeapon->GetWeaponID()) {
-      case TF_WEAPON_PIPEBOMBLAUNCHER:
-      case TF_WEAPON_CANNON:
-        if (!G::CanSecondaryAttack)
-          m_iWait = Vars::Doubletap::TickLimit.Value;
-        break;
-      default:
-        if (G::Attacking || !G::CanPrimaryAttack && !G::Reloading)
-          m_iWait = Vars::Doubletap::TickLimit.Value;
-      }
+  if (auto pWeapon = H::Entities.GetWeapon()) {
+    switch (pWeapon->GetWeaponID()) {
+    case TF_WEAPON_PIPEBOMBLAUNCHER:
+    case TF_WEAPON_CANNON:
+      if (!G::CanSecondaryAttack)
+        m_iWait = Vars::Doubletap::TickLimit.Value;
+      break;
+    default:
+      if (!ValidWeapon(pWeapon))
+        m_iWait = -1;
+      else if (G::Attacking || !G::CanPrimaryAttack && !G::Reloading)
+        m_iWait = Vars::Doubletap::TickLimit.Value;
     }
   } else
     m_iWait = -1;
 
   static auto sv_maxusrcmdprocessticks =
       H::ConVars.FindVar("sv_maxusrcmdprocessticks");
-  if (sv_maxusrcmdprocessticks) {
-    m_iMaxUsrCmdProcessTicks = sv_maxusrcmdprocessticks->GetInt();
-    if (Vars::Misc::Game::AntiCheatCompatibility.Value)
-      m_iMaxUsrCmdProcessTicks = std::min(m_iMaxUsrCmdProcessTicks, 8);
-
-    m_iMaxShift = m_iMaxUsrCmdProcessTicks -
-                  std::max(m_iMaxUsrCmdProcessTicks -
-                               Vars::Doubletap::RechargeLimit.Value,
-                           0) -
-                  (F::AntiAim.YawOn() ? F::AntiAim.AntiAimTicks() : 0);
-    m_iMaxShift = std::max(m_iMaxShift, 1);
-  }
+  m_iMaxUsrCmdProcessTicks = sv_maxusrcmdprocessticks->GetInt();
+  if (Vars::Misc::Game::AntiCheatCompatibility.Value)
+    m_iMaxUsrCmdProcessTicks = std::min(m_iMaxUsrCmdProcessTicks, 8);
+  m_iMaxShift =
+      m_iMaxUsrCmdProcessTicks -
+      std::max(m_iMaxUsrCmdProcessTicks - Vars::Doubletap::RechargeLimit.Value,
+               0) -
+      (F::AntiAim.YawOn() ? F::AntiAim.AntiAimTicks() : 0);
+  m_iMaxShift = std::max(m_iMaxShift, 1);
 }
 
 void CTicks::CreateMove(CTFPlayer *pLocal, CTFWeaponBase *pWeapon,
@@ -321,10 +283,9 @@ void CTicks::ManagePacket(CUserCmd *pCmd, bool *pSendPacket) {
 void CTicks::Start(CTFPlayer *pLocal, CUserCmd *pCmd) {
   Vec2 vOriginalMove;
   int iOriginalButtons;
-  m_bPredictAntiwarp = m_bAntiWarp || GetTicks(H::Entities.GetWeapon()) &&
-                                          Vars::Doubletap::AntiWarp.Value &&
-                                          pLocal->m_hGroundEntity();
-  if (m_bPredictAntiwarp) {
+  if (m_bPredictAntiwarp = m_bAntiWarp || GetTicks(H::Entities.GetWeapon()) &&
+                                              Vars::Doubletap::AntiWarp.Value &&
+                                              pLocal->m_hGroundEntity()) {
     vOriginalMove = {pCmd->forwardmove, pCmd->sidemove};
     iOriginalButtons = pCmd->buttons;
 
@@ -439,11 +400,10 @@ void CTicks::Draw(CTFPlayer *pLocal) {
   if (!m_bSpeedhack) {
     int iAntiAimTicks = F::AntiAim.YawOn() ? F::AntiAim.AntiAimTicks() : 0;
 
-    int iTicks = std::min(
-        m_iMaxUsrCmdProcessTicks,
-        std::max(0, m_iShiftedTicks +
-                        std::max(I::ClientState->chokedcommands - iAntiAimTicks,
-                                 0)));
+    int iTicks = std::clamp(
+        m_iShiftedTicks +
+            std::max(I::ClientState->chokedcommands - iAntiAimTicks, 0),
+        0, m_iMaxUsrCmdProcessTicks);
     int iMax = std::max(m_iMaxUsrCmdProcessTicks - iAntiAimTicks, 0);
 
     float flRatio = float(iTicks) / float(iMax);
@@ -452,11 +412,10 @@ void CTicks::Draw(CTFPlayer *pLocal) {
     int iPosX = dtPos.x - iSizeX / 2,
         iPosY = dtPos.y + fFont.m_nTall + H::Draw.Scale(4) + 1;
 
-    char szTicks[64];
-    sprintf_s(szTicks, "Ticks %d / %d", iTicks, iMax);
-    H::Draw.StringOutlined(
-        fFont, dtPos.x, dtPos.y + 2, Vars::Menu::Theme::Active.Value,
-        Vars::Menu::Theme::Background.Value, ALIGN_TOP, szTicks);
+    H::Draw.StringOutlined(fFont, dtPos.x, dtPos.y + 2,
+                           Vars::Menu::Theme::Active.Value,
+                           Vars::Menu::Theme::Background.Value, ALIGN_TOP,
+                           std::format("Ticks {} / {}", iTicks, iMax).c_str());
     if (m_iWait)
       H::Draw.StringOutlined(
           fFont, dtPos.x,
@@ -478,11 +437,9 @@ void CTicks::Draw(CTFPlayer *pLocal) {
                             Vars::Menu::Theme::Accent.Value, 16);
       H::Draw.EndClipping();
     }
-  } else {
-    char szSpeed[64];
-    sprintf_s(szSpeed, "Speedhack x%d", Vars::Speedhack::Amount.Value);
+  } else
     H::Draw.StringOutlined(
         fFont, dtPos.x, dtPos.y + 2, Vars::Menu::Theme::Active.Value,
-        Vars::Menu::Theme::Background.Value, ALIGN_TOP, szSpeed);
-  }
+        Vars::Menu::Theme::Background.Value, ALIGN_TOP,
+        std::format("Speedhack x{}", Vars::Speedhack::Amount.Value).c_str());
 }

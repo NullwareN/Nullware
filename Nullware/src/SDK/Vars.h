@@ -588,11 +588,11 @@ CVarEnum(PitchReal, "Real pitch", 0, NONE, nullptr,
 CVarEnum(PitchFake, "Fake pitch", 0, NONE, nullptr,
          VA_LIST("None", "Up", "Down", "Jitter", "Reverse jitter"), None, Up,
          Down, Jitter, ReverseJitter);
-Enum(Yaw, Forward, Left, Right, Backwards, Edge, Jitter, Spin, Switch, Random);
+Enum(Yaw, Forward, Left, Right, Backwards, Edge, Jitter, Spin);
 CVarValues(YawReal, "Real yaw", 0, NONE, nullptr, "Forward", "Left", "Right",
-           "Backwards", "Edge", "Jitter", "Spin", "Switch", "Random");
+           "Backwards", "Edge", "Jitter", "Spin");
 CVarValues(YawFake, "Fake yaw", 0, NONE, nullptr, "Forward", "Left", "Right",
-           "Backwards", "Edge", "Jitter", "Spin", "Switch", "Random");
+           "Backwards", "Edge", "Jitter", "Spin");
 Enum(YawMode, View, Target);
 CVarValues(RealYawBase, "Real base", 0, NONE, nullptr, "View", "Target");
 CVarValues(FakeYawBase, "Fake base", 0, NONE, nullptr, "View", "Target");
@@ -623,7 +623,6 @@ CVar(CycleYaw, "Cycle yaw", 0.f, SLIDER_CLAMP | SLIDER_PRECISION, -180.f, 180.f,
      45.f);
 CVar(CyclePitch, "Cycle pitch", 0.f, SLIDER_CLAMP, -180.f, 180.f, 90.f);
 CVar(CycleView, "Cycle view", false);
-CVar(CycleMinwalk, "Cycle minwalk", false);
 NAMESPACE_END(Resolver)
 
 NAMESPACE_BEGIN(CheaterDetection, Cheater Detection)

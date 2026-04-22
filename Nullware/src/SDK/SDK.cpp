@@ -886,5 +886,5 @@ void SDK::GetProjectileFireSetup(CTFPlayer* pPlayer, const Vec3& vAngIn, Vec3 vO
 
 bool SDK::CleanScreenshot()
 {
-	return Vars::Visuals::UI::CleanScreenshots.Value && I::EngineClient->IsTakingScreenshot();
+	return Vars::Visuals::UI::CleanScreenshots.Value && I::EngineClient && I::EngineClient->IsTakingScreenshot();
 }

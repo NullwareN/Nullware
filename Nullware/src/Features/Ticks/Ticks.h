@@ -9,7 +9,6 @@ private:
   void Recharge(CTFPlayer *pLocal);
   void Warp();
   void Doubletap(CTFPlayer *pLocal, CUserCmd *pCmd);
-  bool CanDoubletap(CTFPlayer *pLocal, CTFWeaponBase *pWeapon, CUserCmd *pCmd);
   void Speedhack();
   bool ValidWeapon(CTFWeaponBase *pWeapon);
 

@@ -1528,7 +1528,6 @@ void CMenu::MenuMisc(int iTab) {
             FSlider(Vars::Resolver::CycleYaw, FSliderEnum::Left);
             FSlider(Vars::Resolver::CyclePitch, FSliderEnum::Right);
             FToggle(Vars::Resolver::CycleView, FToggleEnum::Left);
-            FToggle(Vars::Resolver::CycleMinwalk, FToggleEnum::Right);
           }
           PopTransparent();
         }

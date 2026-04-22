@@ -30,6 +30,9 @@ bool CAntiAim::ShouldRun(CTFPlayer *pLocal, CTFWeaponBase *pWeapon,
       pLocal->m_MoveType() != MOVETYPE_WALK ||
       pLocal->InCond(TF_COND_HALLOWEEN_KART) || G::Attacking == 1 ||
       F::AutoRocketJump.IsRunning() ||
+      F::Ticks.m_bDoubletap // this m_bDoubletap check can probably be removed
+                            // if we fix tickbase correctly
+      ||
       pWeapon &&
           pWeapon->m_iItemDefinitionIndex() == Soldier_m_TheBeggarsBazooka &&
           pCmd->buttons & IN_ATTACK && !(G::LastUserCmd->buttons & IN_ATTACK))
@@ -84,15 +87,10 @@ static inline float EdgeDistance(CTFPlayer *pEntity, float flYaw,
 
 static inline int GetEdge(CTFPlayer *pEntity, const float flYaw) {
   float flSize = pEntity->GetSize().y;
-  float flEdgeLeftLong = EdgeDistance(pEntity, flYaw, -flSize * 2.f);
-  float flEdgeRightLong = EdgeDistance(pEntity, flYaw, flSize * 2.f);
-  float flEdgeLeftShort = EdgeDistance(pEntity, flYaw, -flSize);
-  float flEdgeRightShort = EdgeDistance(pEntity, flYaw, flSize);
+  float flEdgeLeftDist = EdgeDistance(pEntity, flYaw, -flSize);
+  float flEdgeRightDist = EdgeDistance(pEntity, flYaw, flSize);
 
-  float flLeft = flEdgeLeftLong + flEdgeLeftShort;
-  float flRight = flEdgeRightLong + flEdgeRightShort;
-
-  return flLeft > flRight ? -1 : 1;
+  return flEdgeLeftDist > flEdgeRightDist ? -1 : 1;
 }
 
 static inline int GetJitter(uint32_t uHash) {
@@ -130,12 +128,6 @@ float CAntiAim::GetYawOffset(CTFPlayer *pEntity, bool bFake) {
                     180.f,
                 360.f) -
            180.f;
-  case Vars::AntiAim::YawEnum::Switch:
-    return (I::GlobalVars->tickcount / 30 % 2 ? 1 : -1) *
-           (bFake ? Vars::AntiAim::FakeYawValue.Value
-                  : Vars::AntiAim::RealYawValue.Value);
-  case Vars::AntiAim::YawEnum::Random:
-    return SDK::RandomFloat(-180.f, 180.f);
   }
   return 0.f;
 }
@@ -269,8 +261,8 @@ void CAntiAim::Run(CTFPlayer *pLocal, CTFWeaponBase *pWeapon, CUserCmd *pCmd,
     FakeShotAngles(pLocal, pWeapon, pCmd);
 
   if (!G::AntiAim) {
-    vRealAngles = {pCmd->viewangles.x, pCmd->viewangles.y};
-    vFakeAngles = {pCmd->viewangles.x, pCmd->viewangles.y};
+    vRealAngles = Vec2(pCmd->viewangles.x, pCmd->viewangles.y);
+    vFakeAngles = Vec2(pCmd->viewangles.x, pCmd->viewangles.y);
     return;
   }
 
@@ -281,14 +273,6 @@ void CAntiAim::Run(CTFPlayer *pLocal, CTFWeaponBase *pWeapon, CUserCmd *pCmd,
       iAntiBackstab != 2 ? GetPitch(pCmd->viewangles.x) : pCmd->viewangles.x;
   vAngles.y =
       !iAntiBackstab ? GetYaw(pLocal, pCmd, bSendPacket) : pCmd->viewangles.y;
-
-  // Simple Desync logic
-  if (!bSendPacket && Vars::AntiAim::YawFake.Value) {
-    vAngles.y = Math::NormalizeAngle(
-        vAngles.y + 120.f); // Shift real angle away from fake for desync
-  }
-
-  Math::ClampAngles(vAngles);
 
   if (Vars::Misc::Game::AntiCheatCompatibility.Value)
     Math::ClampAngles(vAngles);

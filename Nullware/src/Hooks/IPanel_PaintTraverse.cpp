@@ -8,7 +8,14 @@ MAKE_HOOK(IPanel_PaintTraverse, U::Memory.GetVirtual(I::Panel, 41), void,
 	if (!Vars::Visuals::UI::StreamerMode.Value)
 		return CALL_ORIGINAL(rcx, vguiPanel, forceRepaint, allowForce);
 
-	switch (FNV1A::Hash32(I::Panel->GetName(vguiPanel)))
+	if (!I::Panel)
+		return CALL_ORIGINAL(rcx, vguiPanel, forceRepaint, allowForce);
+
+	const char* szPanelName = I::Panel->GetName(vguiPanel);
+	if (!szPanelName)
+		return CALL_ORIGINAL(rcx, vguiPanel, forceRepaint, allowForce);
+
+	switch (FNV1A::Hash32(szPanelName))
 	{
 	case FNV1A::Hash32Const("SteamFriendsList"):
 	case FNV1A::Hash32Const("avatar"):

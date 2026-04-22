@@ -57,7 +57,13 @@ void CResolver::FrameStageNotify()
 		auto pPlayer = pEntity->As<CTFPlayer>();
 		if (pPlayer->entindex() == I::EngineClient->GetLocalPlayer() || !pPlayer->IsAlive() || pPlayer->IsAGhost()
 			|| !H::Entities.GetDeltaTime(pPlayer->entindex()))
+		{
+			// Reset resolver data for inactive players
+			int iUserID = pResource->m_iUserID(pPlayer->entindex());
+			if (m_mResolverData.contains(iUserID))
+				m_mResolverData.erase(iUserID);
 			continue;
+		}
 
 		int iUserID = pResource->m_iUserID(pPlayer->entindex());
 		auto& tData = m_mResolverData[iUserID];
@@ -66,6 +72,13 @@ void CResolver::FrameStageNotify()
 			tData.m_bYaw = true;
 		else
 			tData.m_bYaw = false;
+
+		// Detect MinWalk (Slow walk used by Anti-Aim)
+		float flVel = pPlayer->m_vecVelocity().Length2D();
+		if (flVel > 0.1f && flVel < 5.f && pPlayer->m_hGroundEntity())
+			tData.m_bMinwalk = true;
+		else
+			tData.m_bMinwalk = false;
 
 		if (fabsf(pPlayer->m_angEyeAnglesX()) == 90.f)
 		{
@@ -95,6 +108,15 @@ void CResolver::CreateMove()
 			bool bAutoYaw = tData.m_bAutoSetYaw && Vars::Resolver::AutoResolveYawAmount.Value;
 			bool bAutoPitch = tData.m_bAutoSetPitch && Vars::Resolver::AutoResolvePitchAmount.Value;
 
+			// Jitter detection logic (simple)
+			static std::unordered_map<int, float> m_mLastYaw;
+			float flCurrentYaw = pTarget->m_angEyeAnglesY();
+			if (fabsf(Math::NormalizeAngle(flCurrentYaw - m_mLastYaw[m_iWaitingForTarget])) > 30.f)
+			{
+				tData.m_bJittering = true;
+			}
+			m_mLastYaw[m_iWaitingForTarget] = flCurrentYaw;
+
 			if (bAutoPitch && fabsf(pTarget->m_angEyeAnglesX()) == 90.f && !m_mSniperDots.contains(m_iWaitingForTarget)
 				&& (!bAutoYaw || sign(flYaw) != sign(flYaw + Vars::Resolver::AutoResolveYawAmount.Value) && sign(flYaw) != 0))
 			{
@@ -106,7 +128,12 @@ void CResolver::CreateMove()
 
 			if (bAutoYaw)
 			{
-				flYaw = Math::NormalizeAngle(flYaw + Vars::Resolver::AutoResolveYawAmount.Value);
+				// If jittering, try resolving the center or more extreme angles
+				float flIncrement = Vars::Resolver::AutoResolveYawAmount.Value;
+				if (tData.m_bJittering)
+					flIncrement *= 1.5f;
+
+				flYaw = Math::NormalizeAngle(flYaw + flIncrement);
 
 				F::Backtrack.ResolverUpdate(pTarget);
 				F::Output.ReportResolver(I::EngineClient->GetPlayerForUserID(m_iWaitingForTarget), "Cycling", "yaw", flYaw);
@@ -204,27 +231,7 @@ void CResolver::CreateMove()
 	else
 		m_flLastPitchCycle = 0.f;
 
-	if (Vars::Resolver::CycleMinwalk.Value)
-	{
-		if (SDK::PlatFloatTime() > m_flLastMinwalkCycle + 0.5f)
-		{
-			if (auto pTarget = getPlayerClosestToFOV())
-			{
-				int iUserID = pResource->m_iUserID(pTarget->entindex());
-				auto& tData = m_mResolverData[iUserID];
-
-				bool& bMinwalk = tData.m_bMinwalk;
-				bMinwalk = !bMinwalk;
-
-				F::Backtrack.ResolverUpdate(pTarget);
-				F::Output.ReportResolver(pTarget->entindex(), "Cycling", "minwalk", bMinwalk);
-			}
-
-			m_flLastMinwalkCycle = SDK::PlatFloatTime();
-		}
-	}
-	else
-		m_flLastMinwalkCycle = 0.f;
+	m_flLastMinwalkCycle = 0.f;
 
 	if (Vars::Resolver::CycleView.Value)
 	{
