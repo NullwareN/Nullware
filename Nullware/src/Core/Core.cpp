@@ -29,14 +29,6 @@ static inline std::string GetProcessName(DWORD dwProcessID) {
 static inline bool CheckDXLevel() {
   auto mat_dxlevel = H::ConVars.FindVar("mat_dxlevel");
   if (mat_dxlevel->GetInt() < 90) {
-    /*
-    const char* sMessage = "You are running with graphics options that Nullware
-    V2 does not support. -dxlevel must be at least 90.";
-    U::Core.AppendFailText(sMessage);
-    SDK::Output("Nullware", sMessage, DEFAULT_COLOR, OUTPUT_CONSOLE |
-    OUTPUT_TOAST | OUTPUT_MENU | OUTPUT_DEBUG); return false;
-    */
-
     const char *sMessage = "You are running with graphics options that Nullware "
                            "V2 does not support. "
                            "It is recommended for -dxlevel to be at least 90.";
@@ -78,14 +70,17 @@ void CCore::LogFailText() {
 }
 
 void CCore::Load() {
+#ifdef _WINDLL
   if (m_bUnload = m_bFailed =
           FNV1A::Hash32(GetProcessName(GetCurrentProcessId()).c_str()) !=
           FNV1A::Hash32Const("tf_win64.exe")) {
     AppendFailText("Invalid process");
     return;
   }
+#endif
 
   float flTime = 0.f;
+  bool bStandalone = false;
   while (true) {
     auto uSignature = U::Memory.FindSignature(
         "client.dll", "48 8B 0D ? ? ? ? 48 8B 10 48 8B 19 48 8B C8 FF 92");
@@ -96,6 +91,13 @@ void CCore::Load() {
     auto hWindow = SDK::GetTeamFortressWindow();
     if (uDereference && hWindow)
       break;
+
+#ifndef _WINDLL
+    if (flTime >= 5.f) { // If not found in 5 seconds and running as EXE, assume standalone
+        bStandalone = true;
+        break;
+    }
+#endif
 
     Sleep(500), flTime += 0.5f;
     if (m_bUnload = m_bFailed = flTime >= 60.f) {
@@ -110,10 +112,20 @@ void CCore::Load() {
       return;
     }
   }
+  
+  if (bStandalone) {
+      SDK::Output("Nullware", "Running in Standalone Mode", DEFAULT_COLOR,
+                  OUTPUT_CONSOLE | OUTPUT_TOAST | OUTPUT_DEBUG);
+      // Initialize what we can for standalone mode
+      U::Signatures.Initialize();
+      F::Configs.LoadConfig(F::Configs.m_sCurrentConfig, false);
+      return;
+  }
+
   Sleep(500);
 
   if (m_bUnload = m_bFailed = !U::Signatures.Initialize() ||
-                              !U::Interfaces.Initialize() || !CheckDXLevel())
+                               !U::Interfaces.Initialize() || !CheckDXLevel())
     return;
   if (m_bUnload = m_bFailed2 = !U::Hooks.Initialize() ||
                                !U::BytePatches.Initialize() ||
@@ -149,17 +161,19 @@ void CCore::Unload() {
   U::BytePatches.Unload();
   H::Events.Unload();
 
-  if (F::Menu.m_bIsOpen)
+  if (F::Menu.m_bIsOpen && I::MatSystemSurface)
     I::MatSystemSurface->SetCursorAlwaysVisible(false);
-  if (I::Input->CAM_IsThirdPerson()) {
+  if (I::Input && I::Input->CAM_IsThirdPerson()) {
     if (auto pLocal = H::Entities.GetLocal()) {
       I::Input->CAM_ToFirstPerson();
       pLocal->ThirdPersonSwitch();
     }
   }
   F::Visuals.RestoreWorldModulation();
-  H::ConVars.FindVar("cl_wpn_sway_interp")->SetValue(0.f);
-  H::ConVars.FindVar("cl_wpn_sway_scale")->SetValue(0.f);
+  if (H::ConVars.FindVar("cl_wpn_sway_interp"))
+      H::ConVars.FindVar("cl_wpn_sway_interp")->SetValue(0.f);
+  if (H::ConVars.FindVar("cl_wpn_sway_scale"))
+      H::ConVars.FindVar("cl_wpn_sway_scale")->SetValue(0.f);
 
   Sleep(250);
   F::EnginePrediction.Unload();

@@ -6,8 +6,8 @@
 #include <cmath>
 #include <ctime>
 #include <filesystem>
-#include <experimental/filesystem>
 #include <fstream>
+
 #include <map>
 #include <sstream>
 #include <string>
@@ -29,6 +29,7 @@
 
 #include "../../SDK/SDK.h"
 #include "LuaFeature.h"
+#include "../Visuals/Notifications/Notifications.h"
 
 #ifdef min
 #undef min
@@ -42,6 +43,7 @@ namespace fs = std::experimental::filesystem;
 #else
 namespace fs = std::filesystem;
 #endif
+
 
 /* -----------------------------------------------------------------------
 ** Output redirection
@@ -1183,7 +1185,14 @@ static int lua_callbacks_unregister(lua_State *L) {
 
 // --- CLua Implementation ---
 CLua::CLua() {
-  m_sScriptsPath = fs::current_path().string() + "\\Nullware\\Scripts\\";
+  char appdata[MAX_PATH] = {};
+  if (GetEnvironmentVariableA("LOCALAPPDATA", appdata, MAX_PATH)) {
+    m_sScriptsPath = std::string(appdata) + "\\Nullware\\Scripts\\";
+    m_sDataPath    = std::string(appdata) + "\\Nullware\\LuaData\\";
+  } else {
+    m_sScriptsPath = fs::current_path().string() + "\\Nullware\\Scripts\\";
+    m_sDataPath    = fs::current_path().string() + "\\Nullware\\LuaData\\";
+  }
   m_pState = luaL_newstate();
   if (m_pState) {
     luaL_openlibs(m_pState);
@@ -1367,6 +1376,417 @@ static int lua_engine_get_level_name(lua_State* L) {
     return 1;
 }
 
+
+// ======================================================================
+// EXTENDED ENTITY API
+// ======================================================================
+
+static int lua_entity_get_active_weapon(lua_State* L) {
+    auto pEnt = GetEntityFromLua(L, 1);
+    if (!pEnt || !pEnt->IsPlayer()) return 0;
+    auto pActiveEnt = pEnt->As<CBaseCombatCharacter>()->m_hActiveWeapon().Get();
+    if (!pActiveEnt) { lua_pushnil(L); return 1; }
+    auto pWpn = pActiveEnt->As<CTFWeaponBase>();
+    if (!pWpn) { lua_pushnil(L); return 1; }
+    return PushEntity(L, (CBaseEntity*)pWpn);
+}
+
+static int lua_entity_get_eye_position(lua_State* L) {
+    auto pEnt = GetEntityFromLua(L, 1);
+    if (!pEnt || !pEnt->IsPlayer()) return 0;
+    Vec3 vo = pEnt->As<CTFPlayer>()->GetViewOffset();
+    Vec3 org = pEnt->m_vecOrigin();
+    lua_pushcfunction(L, lua_vector_new);
+    lua_pushnumber(L, org.x + vo.x);
+    lua_pushnumber(L, org.y + vo.y);
+    lua_pushnumber(L, org.z + vo.z);
+    lua_call(L, 3, 1);
+    return 1;
+}
+
+static int lua_entity_get_flags(lua_State* L) {
+    auto pEnt = GetEntityFromLua(L, 1);
+    if (!pEnt || !pEnt->IsPlayer()) { lua_pushinteger(L, 0); return 1; }
+    lua_pushinteger(L, pEnt->As<CTFPlayer>()->m_fFlags());
+    return 1;
+}
+
+static int lua_entity_get_movetype(lua_State* L) {
+    auto pEnt = GetEntityFromLua(L, 1);
+    if (!pEnt) { lua_pushinteger(L, 0); return 1; }
+    lua_pushinteger(L, (int)pEnt->m_MoveType());
+    return 1;
+}
+
+static int lua_entity_get_simtime(lua_State* L) {
+    auto pEnt = GetEntityFromLua(L, 1);
+    if (!pEnt) { lua_pushnumber(L, 0); return 1; }
+    lua_pushnumber(L, pEnt->m_flSimulationTime());
+    return 1;
+}
+
+static int lua_entity_is_enemy(lua_State* L) {
+    auto pEnt = GetEntityFromLua(L, 1);
+    auto pLocal = H::Entities.GetLocal();
+    if (!pEnt || !pLocal) { lua_pushboolean(L, false); return 1; }
+    lua_pushboolean(L, pEnt->m_iTeamNum() != pLocal->m_iTeamNum());
+    return 1;
+}
+
+static int lua_entity_is_visible(lua_State* L) {
+    auto pEnt = GetEntityFromLua(L, 1);
+    auto pLocal = H::Entities.GetLocal();
+    if (!pEnt || !pLocal || !I::EngineClient->IsInGame()) {
+        lua_pushboolean(L, false); return 1;
+    }
+    Vec3 vFrom = pLocal->m_vecOrigin() + pLocal->As<CTFPlayer>()->GetViewOffset();
+    Vec3 vTo   = pEnt->m_vecOrigin();
+    lua_pushboolean(L, SDK::VisPos(pLocal, pEnt, vFrom, vTo));
+    return 1;
+}
+
+static int lua_entity_get_class_name(lua_State* L) {
+    auto pEnt = GetEntityFromLua(L, 1);
+    if (!pEnt) { lua_pushnil(L); return 1; }
+    auto pCC = pEnt->GetClientClass();
+    if (pCC) lua_pushstring(L, pCC->m_pNetworkName);
+    else lua_pushnil(L);
+    return 1;
+}
+
+static int lua_entity_get_dist_to_local(lua_State* L) {
+    auto pEnt = GetEntityFromLua(L, 1);
+    auto pLocal = H::Entities.GetLocal();
+    if (!pEnt || !pLocal) { lua_pushnumber(L, 0); return 1; }
+    lua_pushnumber(L, pLocal->m_vecOrigin().DistTo(pEnt->m_vecOrigin()));
+    return 1;
+}
+
+// ======================================================================
+// WEAPON API  (entity:GetActiveWeapon() returns this metatable too)
+// ======================================================================
+
+static int lua_weapon_get_clip1(lua_State* L) {
+    auto pEnt = GetEntityFromLua(L, 1);
+    if (!pEnt) { lua_pushinteger(L, -1); return 1; }
+    lua_pushinteger(L, pEnt->As<CTFWeaponBase>()->m_iClip1());
+    return 1;
+}
+
+static int lua_weapon_get_next_primary_attack(lua_State* L) {
+    auto pEnt = GetEntityFromLua(L, 1);
+    if (!pEnt) { lua_pushnumber(L, 0); return 1; }
+    lua_pushnumber(L, pEnt->As<CTFWeaponBase>()->m_flNextPrimaryAttack());
+    return 1;
+}
+
+static int lua_weapon_get_item_def_index(lua_State* L) {
+    auto pEnt = GetEntityFromLua(L, 1);
+    if (!pEnt) { lua_pushinteger(L, -1); return 1; }
+    lua_pushinteger(L, pEnt->As<CTFWeaponBase>()->m_iItemDefinitionIndex());
+    return 1;
+}
+
+static int lua_weapon_get_weapon_id(lua_State* L) {
+    auto pEnt = GetEntityFromLua(L, 1);
+    if (!pEnt) { lua_pushinteger(L, 0); return 1; }
+    lua_pushinteger(L, (int)pEnt->As<CTFWeaponBase>()->GetWeaponID());
+    return 1;
+}
+
+static int lua_weapon_can_attack(lua_State* L) {
+    auto pEnt = GetEntityFromLua(L, 1);
+    if (!pEnt || !I::GlobalVars) { lua_pushboolean(L, false); return 1; }
+    float nextAtk = pEnt->As<CTFWeaponBase>()->m_flNextPrimaryAttack();
+    lua_pushboolean(L, I::GlobalVars->curtime >= nextAtk);
+    return 1;
+}
+
+// ======================================================================
+// ENTITIES TABLE EXTRAS
+// ======================================================================
+
+static int lua_entities_get_all(lua_State* L) {
+    lua_newtable(L);
+    if (!I::EngineClient || !I::EngineClient->IsInGame()) return 1;
+    int i = 1;
+    int maxEnt = I::ClientEntityList->GetHighestEntityIndex();
+    for (int n = 1; n <= maxEnt; n++) {
+        auto pClientEnt = I::ClientEntityList->GetClientEntity(n);
+        if (!pClientEnt) continue;
+        auto pEnt = pClientEnt->As<CBaseEntity>();
+        PushEntity(L, pEnt);
+        lua_rawseti(L, -2, i++);
+    }
+    return 1;
+}
+
+static int lua_entities_get_projectiles(lua_State* L) {
+    lua_newtable(L);
+    if (!I::EngineClient || !I::EngineClient->IsInGame()) return 1;
+    int i = 1;
+    int maxEnt = I::ClientEntityList->GetHighestEntityIndex();
+    for (int n = I::EngineClient->GetMaxClients() + 1; n <= maxEnt; n++) {
+        auto pClientEnt = I::ClientEntityList->GetClientEntity(n);
+        if (!pClientEnt) continue;
+        auto pEnt = pClientEnt->As<CBaseEntity>();
+        auto pCC  = pEnt->GetClientClass();
+        if (!pCC) continue;
+        std::string name = pCC->m_pNetworkName;
+        if (name.find("Rocket") != std::string::npos ||
+            name.find("Grenade") != std::string::npos ||
+            name.find("Flare") != std::string::npos ||
+            name.find("Arrow") != std::string::npos ||
+            name.find("Ball") != std::string::npos ||
+            name.find("Pipe") != std::string::npos) {
+            PushEntity(L, pEnt);
+            lua_rawseti(L, -2, i++);
+        }
+    }
+    return 1;
+}
+
+// ======================================================================
+// DRAW EXTRAS
+// ======================================================================
+
+static int lua_draw_filled_rect_gradient(lua_State* L) {
+    if (lua_gettop(L) < 6) return 0;
+    float x = (float)lua_tonumber(L, 1), y = (float)lua_tonumber(L, 2);
+    float w = (float)lua_tonumber(L, 3), h = (float)lua_tonumber(L, 4);
+    ImU32 col_tl = GetImColor(L, 5), col_br = GetImColor(L, 6);
+    bool horiz = lua_isboolean(L, 7) && lua_toboolean(L, 7);
+    ImGui::GetBackgroundDrawList()->AddRectFilledMultiColor(
+        {x, y}, {x + w, y + h},
+        horiz ? col_tl : col_tl,
+        horiz ? col_br : col_tl,
+        horiz ? col_br : col_br,
+        horiz ? col_tl : col_br);
+    return 0;
+}
+
+static int lua_draw_progress_bar(lua_State* L) {
+    if (lua_gettop(L) < 5) return 0;
+    float x = (float)lua_tonumber(L, 1), y = (float)lua_tonumber(L, 2);
+    float w = (float)lua_tonumber(L, 3), h = (float)lua_tonumber(L, 4);
+    float frac = std::clamp((float)lua_tonumber(L, 5), 0.f, 1.f);
+    ImU32 bg   = GetImColor(L, 6);
+    ImU32 fill = GetImColor(L, 7);
+    auto* dl = ImGui::GetBackgroundDrawList();
+    dl->AddRectFilled({x, y}, {x + w, y + h}, bg);
+    dl->AddRectFilled({x, y}, {x + w * frac, y + h}, fill);
+    return 0;
+}
+
+static int lua_draw_world_text(lua_State* L) {
+    if (lua_gettop(L) < 4) return 0;
+    float wx = (float)lua_tonumber(L, 1);
+    float wy = (float)lua_tonumber(L, 2);
+    float wz = (float)lua_tonumber(L, 3);
+    const char* text = lua_tostring(L, 4);
+    ImU32 color = GetImColor(L, 5);
+    Vec3 screen;
+    if (!SDK::W2S({wx, wy, wz}, screen)) return 0;
+    ImVec2 sz = ImGui::CalcTextSize(text);
+    ImGui::GetBackgroundDrawList()->AddText({screen.x - sz.x / 2.f, screen.y}, color, text);
+    return 0;
+}
+
+// ======================================================================
+// MATH3D EXTRAS
+// ======================================================================
+
+static int lua_math3d_lerp(lua_State* L) {
+    if (lua_gettop(L) < 3) return 0;
+    double a = lua_tonumber(L, 1), b = lua_tonumber(L, 2), t = lua_tonumber(L, 3);
+    lua_pushnumber(L, a + (b - a) * t);
+    return 1;
+}
+
+static int lua_math3d_clamp(lua_State* L) {
+    if (lua_gettop(L) < 3) return 0;
+    double v = lua_tonumber(L, 1), lo = lua_tonumber(L, 2), hi = lua_tonumber(L, 3);
+    lua_pushnumber(L, std::clamp(v, lo, hi));
+    return 1;
+}
+
+static int lua_math3d_vector_length(lua_State* L) {
+    float x=0,y=0,z=0;
+    if (lua_istable(L, 1)) {
+        lua_getfield(L, 1, "x"); x=(float)lua_tonumber(L,-1); lua_pop(L,1);
+        lua_getfield(L, 1, "y"); y=(float)lua_tonumber(L,-1); lua_pop(L,1);
+        lua_getfield(L, 1, "z"); z=(float)lua_tonumber(L,-1); lua_pop(L,1);
+    } else {
+        x=(float)luaL_optnumber(L,1,0);
+        y=(float)luaL_optnumber(L,2,0);
+        z=(float)luaL_optnumber(L,3,0);
+    }
+    lua_pushnumber(L, sqrtf(x*x+y*y+z*z));
+    return 1;
+}
+
+static int lua_math3d_dot_product(lua_State* L) {
+    if (lua_gettop(L) < 6) return 0;
+    float ax=(float)lua_tonumber(L,1), ay=(float)lua_tonumber(L,2), az=(float)lua_tonumber(L,3);
+    float bx=(float)lua_tonumber(L,4), by=(float)lua_tonumber(L,5), bz=(float)lua_tonumber(L,6);
+    lua_pushnumber(L, ax*bx + ay*by + az*bz);
+    return 1;
+}
+
+static int lua_math3d_normalize_vector(lua_State* L) {
+    float x=(float)luaL_optnumber(L,1,0), y=(float)luaL_optnumber(L,2,0), z=(float)luaL_optnumber(L,3,0);
+    float len = sqrtf(x*x+y*y+z*z);
+    if (len < 0.0001f) { lua_pushnumber(L,0); lua_pushnumber(L,0); lua_pushnumber(L,0); return 3; }
+    lua_pushnumber(L, x/len); lua_pushnumber(L, y/len); lua_pushnumber(L, z/len);
+    return 3;
+}
+
+// ======================================================================
+// ENGINE EXTRAS
+// ======================================================================
+
+static int lua_engine_get_server_ip(lua_State* L) {
+    if (!I::EngineClient) { lua_pushstring(L, ""); return 1; }
+    auto pNet = I::EngineClient->GetNetChannelInfo();
+    if (pNet) lua_pushstring(L, pNet->GetAddress());
+    else lua_pushstring(L, "");
+    return 1;
+}
+
+static int lua_engine_get_ping_ms(lua_State* L) {
+    if (!I::EngineClient) { lua_pushnumber(L, 0); return 1; }
+    auto pNet = I::EngineClient->GetNetChannelInfo();
+    if (pNet) lua_pushnumber(L, pNet->GetLatency(0) * 1000.0);
+    else lua_pushnumber(L, 0);
+    return 1;
+}
+
+static int lua_engine_is_local_server(lua_State* L) {
+    lua_pushboolean(L, SDK::IsLoopback());
+    return 1;
+}
+
+static int lua_engine_get_frame_time(lua_State* L) {
+    lua_pushnumber(L, I::GlobalVars ? I::GlobalVars->frametime : 0.015);
+    return 1;
+}
+
+// ======================================================================
+// HTTP TABLE (wininet async)
+// ======================================================================
+static int lua_http_get(lua_State* L) {
+    if (lua_gettop(L) < 2 || !lua_isstring(L, 1) || !lua_isfunction(L, 2)) return 0;
+    std::string url = lua_tostring(L, 1);
+    lua_pushvalue(L, 2);
+    int ref = luaL_ref(L, LUA_REGISTRYINDEX);
+
+    std::thread([url, ref]() {
+        HINTERNET hInet = InternetOpenA("Nullware/1.0", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
+        if (!hInet) {
+            std::lock_guard<std::mutex> lock(F::Lua.m_HttpMutex);
+            F::Lua.m_vHttpResults.push_back({ref, -1, ""});
+            return;
+        }
+        HINTERNET hUrl = InternetOpenUrlA(hInet, url.c_str(), NULL, 0,
+            INTERNET_FLAG_RELOAD | INTERNET_FLAG_NO_CACHE_WRITE, 0);
+        std::string body;
+        int statusCode = -1;
+        if (hUrl) {
+            DWORD statusSize = sizeof(DWORD);
+            DWORD dwStatus = 0;
+            HttpQueryInfoA(hUrl, HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER,
+                &dwStatus, &statusSize, NULL);
+            statusCode = (int)dwStatus;
+            char buf[4096];
+            DWORD read;
+            while (InternetReadFile(hUrl, buf, sizeof(buf)-1, &read) && read > 0) {
+                buf[read] = 0;
+                body += buf;
+            }
+            InternetCloseHandle(hUrl);
+        }
+        InternetCloseHandle(hInet);
+        std::lock_guard<std::mutex> lock(F::Lua.m_HttpMutex);
+        F::Lua.m_vHttpResults.push_back({ref, statusCode, body});
+    }).detach();
+
+    return 0;
+}
+
+// ======================================================================
+// NOTIFICATION / OUTPUT
+// ======================================================================
+static int lua_notify(lua_State* L) {
+    const char* msg = luaL_checkstring(L, 1);
+    ImU32 col32 = lua_gettop(L) >= 2 ? GetImColor(L, 2) : IM_COL32(175,150,255,255);
+    Color_t c((col32) & 0xFF, (col32 >> 8) & 0xFF, (col32 >> 16) & 0xFF, (col32 >> 24) & 0xFF);
+    F::Notifications.Add(msg, c);
+    return 0;
+}
+
+// ======================================================================
+// DATABASE FIX — use %LOCALAPPDATA%\Nullware\LuaData\
+// ======================================================================
+static std::string LuaDataPath() {
+    char path[MAX_PATH];
+    if (GetEnvironmentVariableA("LOCALAPPDATA", path, MAX_PATH))
+        return std::string(path) + "\\Nullware\\LuaData\\";
+    return fs::current_path().string() + "\\Nullware\\LuaData\\";
+}
+
+static int lua_database_save2(lua_State* L) {
+    if (lua_gettop(L) < 2 || !lua_isstring(L, 1)) { lua_pushboolean(L, false); return 1; }
+    std::string path = LuaDataPath();
+    std::error_code ec;
+    if (!fs::exists(path, ec)) fs::create_directories(path, ec);
+    std::ofstream f(path + lua_tostring(L, 1) + ".txt");
+    if (!f.is_open()) { lua_pushboolean(L, false); return 1; }
+    f << (lua_isstring(L, 2) ? lua_tostring(L, 2) : "");
+    lua_pushboolean(L, true);
+    return 1;
+}
+
+static int lua_database_load2(lua_State* L) {
+    if (lua_gettop(L) < 1 || !lua_isstring(L, 1)) return 0;
+    std::string p = LuaDataPath() + lua_tostring(L, 1) + ".txt";
+    std::error_code ec;
+    if (!fs::exists(p, ec)) { lua_pushnil(L); return 1; }
+    std::ifstream f(p);
+    std::stringstream buf; buf << f.rdbuf();
+    lua_pushstring(L, buf.str().c_str());
+    return 1;
+}
+
+static int lua_database_exists2(lua_State* L) {
+    if (lua_gettop(L) < 1 || !lua_isstring(L, 1)) { lua_pushboolean(L, false); return 1; }
+    std::error_code ec;
+    lua_pushboolean(L, fs::exists(LuaDataPath() + lua_tostring(L, 1) + ".txt", ec));
+    return 1;
+}
+
+static int lua_database_delete2(lua_State* L) {
+    if (lua_gettop(L) < 1 || !lua_isstring(L, 1)) { lua_pushboolean(L, false); return 1; }
+    std::error_code ec;
+    lua_pushboolean(L, fs::remove(LuaDataPath() + lua_tostring(L, 1) + ".txt", ec));
+    return 1;
+}
+
+static int lua_database_list2(lua_State* L) {
+    lua_newtable(L);
+    std::string path = LuaDataPath();
+    std::error_code ec;
+    if (!fs::exists(path, ec)) return 1;
+    int i = 1;
+    for (auto& e : fs::directory_iterator(path, ec)) {
+        if (e.path().extension() == ".txt") {
+            std::string stem = e.path().stem().string();
+            lua_pushstring(L, stem.c_str());
+            lua_rawseti(L, -2, i++);
+        }
+    }
+    return 1;
+}
+
 void CLua::RegisterFunctions() {
   // Vector Metatable
   luaL_newmetatable(m_pState, "Vector");
@@ -1423,6 +1843,36 @@ void CLua::RegisterFunctions() {
   lua_setfield(m_pState, -2, "SetNetVar");
   lua_pushcfunction(m_pState, lua_entity_get_abs_origin);
   lua_setfield(m_pState, -2, "GetAbsOrigin");
+  // Extended entity API
+  lua_pushcfunction(m_pState, lua_entity_get_active_weapon);
+  lua_setfield(m_pState, -2, "GetActiveWeapon");
+  lua_pushcfunction(m_pState, lua_entity_get_eye_position);
+  lua_setfield(m_pState, -2, "GetEyePosition");
+  lua_pushcfunction(m_pState, lua_entity_get_flags);
+  lua_setfield(m_pState, -2, "GetFlags");
+  lua_pushcfunction(m_pState, lua_entity_get_movetype);
+  lua_setfield(m_pState, -2, "GetMoveType");
+  lua_pushcfunction(m_pState, lua_entity_get_simtime);
+  lua_setfield(m_pState, -2, "GetSimulationTime");
+  lua_pushcfunction(m_pState, lua_entity_is_enemy);
+  lua_setfield(m_pState, -2, "IsEnemy");
+  lua_pushcfunction(m_pState, lua_entity_is_visible);
+  lua_setfield(m_pState, -2, "IsVisible");
+  lua_pushcfunction(m_pState, lua_entity_get_class_name);
+  lua_setfield(m_pState, -2, "GetClassName");
+  lua_pushcfunction(m_pState, lua_entity_get_dist_to_local);
+  lua_setfield(m_pState, -2, "GetDistToLocal");
+  // Weapon API (accessible on any entity)
+  lua_pushcfunction(m_pState, lua_weapon_get_clip1);
+  lua_setfield(m_pState, -2, "GetClip1");
+  lua_pushcfunction(m_pState, lua_weapon_get_next_primary_attack);
+  lua_setfield(m_pState, -2, "GetNextPrimaryAttack");
+  lua_pushcfunction(m_pState, lua_weapon_get_item_def_index);
+  lua_setfield(m_pState, -2, "GetItemDefIndex");
+  lua_pushcfunction(m_pState, lua_weapon_get_weapon_id);
+  lua_setfield(m_pState, -2, "GetWeaponID");
+  lua_pushcfunction(m_pState, lua_weapon_can_attack);
+  lua_setfield(m_pState, -2, "CanAttack");
   lua_setfield(m_pState, -2, "__index");
   lua_pop(m_pState, 1);
 
@@ -1470,6 +1920,14 @@ void CLua::RegisterFunctions() {
   lua_setfield(m_pState, -2, "GetPlatFloatTime");
   lua_pushcfunction(m_pState, lua_engine_con_command);
   lua_setfield(m_pState, -2, "ConCommand");
+  lua_pushcfunction(m_pState, lua_engine_get_server_ip);
+  lua_setfield(m_pState, -2, "GetServerIP");
+  lua_pushcfunction(m_pState, lua_engine_get_ping_ms);
+  lua_setfield(m_pState, -2, "GetPingMS");
+  lua_pushcfunction(m_pState, lua_engine_is_local_server);
+  lua_setfield(m_pState, -2, "IsLocalServer");
+  lua_pushcfunction(m_pState, lua_engine_get_frame_time);
+  lua_setfield(m_pState, -2, "GetFrameTime");
   lua_pushcfunction(m_pState, [](lua_State* L) -> int {
       const char* title = luaL_checkstring(L, 1);
       const char* msg = luaL_checkstring(L, 2);
@@ -1513,6 +1971,10 @@ void CLua::RegisterFunctions() {
   lua_setfield(m_pState, -2, "GetEnemyPlayers");
   lua_pushcfunction(m_pState, lua_entities_get_buildings);
   lua_setfield(m_pState, -2, "GetBuildings");
+  lua_pushcfunction(m_pState, lua_entities_get_all);
+  lua_setfield(m_pState, -2, "GetAll");
+  lua_pushcfunction(m_pState, lua_entities_get_projectiles);
+  lua_setfield(m_pState, -2, "GetProjectiles");
   lua_setglobal(m_pState, "entities");
 
   // Draw
@@ -1529,6 +1991,12 @@ void CLua::RegisterFunctions() {
   lua_setfield(m_pState, -2, "Triangle");
   lua_pushcfunction(m_pState, lua_draw_get_text_size);
   lua_setfield(m_pState, -2, "GetTextSize");
+  lua_pushcfunction(m_pState, lua_draw_filled_rect_gradient);
+  lua_setfield(m_pState, -2, "RectGradient");
+  lua_pushcfunction(m_pState, lua_draw_progress_bar);
+  lua_setfield(m_pState, -2, "ProgressBar");
+  lua_pushcfunction(m_pState, lua_draw_world_text);
+  lua_setfield(m_pState, -2, "WorldText");
   lua_setglobal(m_pState, "draw");
 
   // Input
@@ -1555,6 +2023,16 @@ void CLua::RegisterFunctions() {
   lua_setfield(m_pState, -2, "AngleVectors");
   lua_pushcfunction(m_pState, lua_math3d_vector_angles);
   lua_setfield(m_pState, -2, "VectorAngles");
+  lua_pushcfunction(m_pState, lua_math3d_lerp);
+  lua_setfield(m_pState, -2, "Lerp");
+  lua_pushcfunction(m_pState, lua_math3d_clamp);
+  lua_setfield(m_pState, -2, "Clamp");
+  lua_pushcfunction(m_pState, lua_math3d_vector_length);
+  lua_setfield(m_pState, -2, "VectorLength");
+  lua_pushcfunction(m_pState, lua_math3d_dot_product);
+  lua_setfield(m_pState, -2, "DotProduct");
+  lua_pushcfunction(m_pState, lua_math3d_normalize_vector);
+  lua_setfield(m_pState, -2, "NormalizeVector");
   lua_setglobal(m_pState, "math3d");
 
   // Vars
@@ -1595,8 +2073,23 @@ void CLua::RegisterFunctions() {
   luaL_newlib(m_pState, timer_lib);
   lua_setfield(m_pState, -2, "Timer");
 
-  luaL_newlib(m_pState, database_lib);
+  // Updated Database (uses %LOCALAPPDATA%)
+  lua_newtable(m_pState);
+  lua_pushcfunction(m_pState, lua_database_save2);   lua_setfield(m_pState, -2, "Save");
+  lua_pushcfunction(m_pState, lua_database_load2);   lua_setfield(m_pState, -2, "Load");
+  lua_pushcfunction(m_pState, lua_database_exists2); lua_setfield(m_pState, -2, "Exists");
+  lua_pushcfunction(m_pState, lua_database_delete2); lua_setfield(m_pState, -2, "Delete");
+  lua_pushcfunction(m_pState, lua_database_list2);   lua_setfield(m_pState, -2, "List");
   lua_setfield(m_pState, -2, "Database");
+
+  // HTTP module
+  lua_newtable(m_pState);
+  lua_pushcfunction(m_pState, lua_http_get); lua_setfield(m_pState, -2, "Get");
+  lua_setfield(m_pState, -2, "Http");
+
+  // Notify helper
+  lua_pushcfunction(m_pState, lua_notify);
+  lua_setfield(m_pState, -2, "Notify");
 
   luaL_newlib(m_pState, client_lib);
   lua_setfield(m_pState, -2, "Client");
@@ -1756,7 +2249,9 @@ void CLua::RunScript(std::string sName, const std::string &sScript) {
 
   // Auto-register callbacks defined at script top-level
   lua_rawgeti(m_pState, LUA_REGISTRYINDEX, m_mScriptEnvs[sName]);
-  const char *hooks[] = {"OnRender", "CreateMove", "FrameStageNotify"};
+  const char *hooks[] = {"OnRender", "CreateMove", "FrameStageNotify",
+      "OnLevelInit", "OnLevelShutdown", "OnEntityCreated", "OnPlayerHurt",
+      "OnPlayerDeath", "OnUnload"};
   for (const char *g : hooks) {
     lua_getfield(m_pState, -1, g);
     if (lua_isfunction(m_pState, -1))
@@ -1770,6 +2265,20 @@ void CLua::RunScript(std::string sName, const std::string &sScript) {
 void CLua::Update() {
     std::lock_guard<std::recursive_mutex> lock(m_Mut);
     if (!m_pState) return;
+
+    // Dispatch HTTP results
+    {
+        std::lock_guard<std::mutex> hlock(m_HttpMutex);
+        for (auto& r : m_vHttpResults) {
+            lua_rawgeti(m_pState, LUA_REGISTRYINDEX, r.iCallbackRef);
+            lua_pushinteger(m_pState, r.iStatusCode);
+            lua_pushstring(m_pState, r.sBody.c_str());
+            if (lua_pcall(m_pState, 2, 0, m_iErrorHandlerRef))
+                lua_pop(m_pState, 1);
+            luaL_unref(m_pState, LUA_REGISTRYINDEX, r.iCallbackRef);
+        }
+        m_vHttpResults.clear();
+    }
 
     float curtime = (float)SDK::PlatFloatTime();
     for (auto it = m_vTimers.begin(); it != m_vTimers.end(); ) {
@@ -1882,5 +2391,58 @@ void CLua::OnFrameStageNotify(ClientFrameStage_t curStage) {
     if (lua_pcall(m_pState, 1, 0, m_iErrorHandlerRef)) {
       lua_pop(m_pState, 1);
     }
+  }
+}
+
+void CLua::FireCallback(const char* name, int nArgs) {
+  // nArgs values already pushed on stack before calling this
+  std::lock_guard<std::recursive_mutex> lock(m_Mut);
+  if (!m_pState) {
+    if (nArgs > 0) lua_pop(m_pState, nArgs);
+    return;
+  }
+  auto it = m_mCallbacks.find(name);
+  if (it == m_mCallbacks.end()) {
+    if (nArgs > 0 && m_pState) lua_pop(m_pState, nArgs);
+    return;
+  }
+  // Save args into temps
+  std::vector<int> argRefs;
+  for (int i = 0; i < nArgs; i++) {
+    lua_pushvalue(m_pState, -(nArgs - i));
+    argRefs.push_back(luaL_ref(m_pState, LUA_REGISTRYINDEX));
+  }
+  if (nArgs > 0) lua_pop(m_pState, nArgs);
+
+  for (auto& pair : it->second) {
+    lua_rawgeti(m_pState, LUA_REGISTRYINDEX, pair.second);
+    for (int ref : argRefs)
+      lua_rawgeti(m_pState, LUA_REGISTRYINDEX, ref);
+    if (lua_pcall(m_pState, nArgs, 0, m_iErrorHandlerRef))
+      lua_pop(m_pState, 1);
+  }
+  for (int ref : argRefs)
+    luaL_unref(m_pState, LUA_REGISTRYINDEX, ref);
+}
+
+void CLua::OnLevelInit() {
+  std::lock_guard<std::recursive_mutex> lock(m_Mut);
+  if (!m_pState) return;
+  auto& cbs = m_mCallbacks["OnLevelInit"];
+  for (auto& pair : cbs) {
+    lua_rawgeti(m_pState, LUA_REGISTRYINDEX, pair.second);
+    if (lua_pcall(m_pState, 0, 0, m_iErrorHandlerRef))
+      lua_pop(m_pState, 1);
+  }
+}
+
+void CLua::OnLevelShutdown() {
+  std::lock_guard<std::recursive_mutex> lock(m_Mut);
+  if (!m_pState) return;
+  auto& cbs = m_mCallbacks["OnLevelShutdown"];
+  for (auto& pair : cbs) {
+    lua_rawgeti(m_pState, LUA_REGISTRYINDEX, pair.second);
+    if (lua_pcall(m_pState, 0, 0, m_iErrorHandlerRef))
+      lua_pop(m_pState, 1);
   }
 }

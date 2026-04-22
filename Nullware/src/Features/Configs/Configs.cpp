@@ -338,22 +338,28 @@ void CConfigs::LoadJson(const boost::property_tree::ptree &t,
 }
 
 CConfigs::CConfigs() {
-  m_sConfigPath = std::filesystem::current_path().string() + "\\Nullware\\";
+  char path[MAX_PATH];
+  if (GetEnvironmentVariableA("LOCALAPPDATA", path, MAX_PATH)) {
+      m_sConfigPath = std::string(path) + "\\Nullware\\";
+  } else {
+      m_sConfigPath = std::filesystem::current_path().string() + "\\Nullware\\";
+  }
+  
   m_sVisualsPath = m_sConfigPath + "Visuals\\";
   m_sCorePath = m_sConfigPath + "Core\\";
   m_sMaterialsPath = m_sConfigPath + "Materials\\";
 
   if (!std::filesystem::exists(m_sConfigPath))
-    std::filesystem::create_directory(m_sConfigPath);
+    std::filesystem::create_directories(m_sConfigPath);
 
   if (!std::filesystem::exists(m_sVisualsPath))
-    std::filesystem::create_directory(m_sVisualsPath);
+    std::filesystem::create_directories(m_sVisualsPath);
 
   if (!std::filesystem::exists(m_sCorePath))
-    std::filesystem::create_directory(m_sCorePath);
+    std::filesystem::create_directories(m_sCorePath);
 
   if (!std::filesystem::exists(m_sMaterialsPath))
-    std::filesystem::create_directory(m_sMaterialsPath);
+    std::filesystem::create_directories(m_sMaterialsPath);
 }
 
 using MaterialLayers_t = std::vector<std::pair<std::string, Color_t>>;

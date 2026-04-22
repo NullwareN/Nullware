@@ -23,7 +23,7 @@ void CMenu::DrawMenu() {
 
   // Menu Animation
   m_flMenuAlpha = Math::InterpTo(m_flMenuAlpha, m_bIsOpen ? 1.f : 0.f,
-                                 I::GlobalVars->frametime, 12.f);
+                                 I::GlobalVars ? I::GlobalVars->frametime : 0.015f, 12.f);
   if (m_flMenuAlpha <= 0.001f && !m_bIsOpen)
     return;
 
@@ -115,7 +115,7 @@ void CMenu::DrawMenu() {
     }
 
     static int iAimbotTab = 0, iVisualsTab = 0, iMiscTab = 0, iLogsTab = 0,
-               iSettingsTab = 0, iLuaTab = 0;
+               iSettingsTab = 0, iLuaTab = 0, iDebugTab = 0;
     PushFont(F::Render.FontBold);
 
     int iOldTab = m_iCurrentTab;
@@ -124,9 +124,10 @@ void CMenu::DrawMenu() {
                {"MISC", "MAIN", "HVH"},
                {"LOGS", "PLAYERLIST", "SETTINGS##", "OUTPUT"},
                {"SETTINGS", "CONFIG", "BINDS", "MATERIALS", "EXTRA"},
-               {"LUA", "LOCAL"}},
+               {"LUA", "LOCAL"},
+               {"DEBUG", "INFO"}},
               {&m_iCurrentTab, &iAimbotTab, &iVisualsTab, &iMiscTab, &iLogsTab,
-               &iSettingsTab, &iLuaTab},
+               &iSettingsTab, &iLuaTab, &iDebugTab},
               {H::Draw.Scale(flSideSize - 16), H::Draw.Scale(36)},
               {H::Draw.Scale(8), H::Draw.Scale(8) + flOffset},
               FTabsEnum::Vertical | FTabsEnum::HorizontalIcons |
@@ -136,7 +137,8 @@ void CMenu::DrawMenu() {
                {ICON_MD_ARTICLE},
                {ICON_MD_IMPORT_CONTACTS},
                {ICON_MD_SETTINGS},
-               {ICON_MD_CODE}},
+               {ICON_MD_CODE},
+               {ICON_MD_BUG_REPORT}},
               {H::Draw.Scale(10), 0}, {}, {}, {H::Draw.Scale(22), 0})) {
       if (m_iCurrentTab != iOldTab) {
         m_iNextTab = m_iCurrentTab;
@@ -149,14 +151,14 @@ void CMenu::DrawMenu() {
     // Tab Transition Animation
     if (m_iNextTab != m_iCurrentTab) {
       m_flTabAlpha =
-          Math::InterpTo(m_flTabAlpha, 0.f, I::GlobalVars->frametime, 15.f);
+          Math::InterpTo(m_flTabAlpha, 0.f, I::GlobalVars ? I::GlobalVars->frametime : 0.015f, 15.f);
       if (m_flTabAlpha <= 0.01f) {
         m_iCurrentTab = m_iNextTab;
         m_flTabAlpha = 0.f;
       }
     } else {
       m_flTabAlpha =
-          Math::InterpTo(m_flTabAlpha, 1.f, I::GlobalVars->frametime, 15.f);
+          Math::InterpTo(m_flTabAlpha, 1.f, I::GlobalVars ? I::GlobalVars->frametime : 0.015f, 15.f);
     }
 
     static std::string sSearch = "";
@@ -200,6 +202,9 @@ void CMenu::DrawMenu() {
           break;
         case 5:
           MenuLua(iLuaTab);
+          break;
+        case 6:
+          MenuDebug(iDebugTab);
           break;
         }
       } else
@@ -4771,4 +4776,52 @@ void CMenu::AddOutput(const char *sFunction, const char *sLog, Color_t tColor) {
   m_vOutput.emplace_back(sFunction, sLog, iID++, tColor);
   while (m_vOutput.size() > m_iMaxOutputSize)
     m_vOutput.pop_front();
+}
+
+void CMenu::MenuDebug(int iTab) {
+  using namespace ImGui;
+
+  switch (iTab) {
+  case 0: {
+    if (BeginTable("DebugTable", 2)) {
+      TableNextColumn();
+      {
+        if (Section("System Info")) {
+          FText("Build Date: " __DATE__);
+          FText("Build Time: " __TIME__);
+          FText(std::format("Config Path: {}", F::Configs.m_sConfigPath).c_str());
+          
+          static bool bGameFound = false;
+          static float flLastCheckTime = 0.f;
+          if (ImGui::GetTime() - flLastCheckTime > 1.0f) {
+              bGameFound = SDK::GetTeamFortressWindow() != nullptr;
+              flLastCheckTime = ImGui::GetTime();
+          }
+          FText(std::format("Game Status: {}", bGameFound ? "Running" : "Not Found").c_str());
+          
+          bool bInterfacesLoaded = I::EngineClient != nullptr;
+          FText(std::format("Interfaces: {}", bInterfacesLoaded ? "Loaded" : "Failed/Standalone").c_str());
+        }
+        EndSection();
+      }
+      
+      TableNextColumn();
+      {
+        if (Section("Standalone Mode")) {
+          FText("Standalone mode allows testing the UI and configs without needing the game running.");
+          FText("Currently active: "
+#ifdef _WINDLL
+          "DLL Mode"
+#else
+          "EXE Mode"
+#endif
+          );
+        }
+        EndSection();
+      }
+      EndTable();
+    }
+    break;
+  }
+  }
 }

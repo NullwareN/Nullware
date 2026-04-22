@@ -11,15 +11,18 @@ MAKE_SIGNATURE(CAttributeManager_AttribHookFloat, "client.dll", "4C 8B DC 49 89 
 
 static BOOL CALLBACK TeamFortressWindow(HWND hWindow, LPARAM lParam)
 {
+#ifdef _WINDLL
 	DWORD iProcess1 = GetCurrentProcessId();
 	DWORD iProcess2; GetWindowThreadProcessId(hWindow, &iProcess2);
 	if (iProcess1 != iProcess2)
 		return TRUE;
+#endif
 
 	char sWindowTitle[64];
 	GetWindowText(hWindow, sWindowTitle, sizeof(sWindowTitle));
 	switch (FNV1A::Hash32(sWindowTitle))
 	{
+	case FNV1A::Hash32Const("Team Fortress 2"):
 	case FNV1A::Hash32Const("Team Fortress 2 - Direct3D 9 - 64 Bit"):
 	case FNV1A::Hash32Const("Team Fortress 2 - Vulkan - 64 Bit"):
 		break;
@@ -39,7 +42,7 @@ void SDK::Output(const char* sFunction, const char* sLog, Color_t tColor,
 {
 	if (sLog)
 	{
-		if (iTo & OUTPUT_CONSOLE)
+		if (iTo & OUTPUT_CONSOLE && I::CVar)
 		{
 			I::CVar->ConsoleColorPrintf(tColor, "%s%s%s ", sLeft, sFunction, sRight);
 			I::CVar->ConsoleColorPrintf({}, "%s\n", sLog);
@@ -50,16 +53,16 @@ void SDK::Output(const char* sFunction, const char* sLog, Color_t tColor,
 			F::Notifications.Add(sLog, tColor);
 		if (iTo & OUTPUT_MENU)
 			F::Menu.AddOutput(std::format("{}{}{}", sLeft, sFunction, sRight).c_str(), sLog, tColor);
-		if (iTo & OUTPUT_CHAT)
+		if (iTo & OUTPUT_CHAT && I::ClientModeShared && I::ClientModeShared->m_pChatElement)
 			I::ClientModeShared->m_pChatElement->ChatPrintf(0, std::format("{}{}{}{}\x1 {}", tColor.ToHex(), sLeft, sFunction, sRight, sLog).c_str());
-		if (iTo & OUTPUT_PARTY)
+		if (iTo & OUTPUT_PARTY && I::TFPartyClient)
 			I::TFPartyClient->SendPartyChat(sLog);
 		if (iMessageBox != -1)
 			MessageBox(nullptr, sLog, sFunction, iMessageBox);
 	}
 	else
 	{
-		if (iTo & OUTPUT_CONSOLE)
+		if (iTo & OUTPUT_CONSOLE && I::CVar)
 			I::CVar->ConsoleColorPrintf(tColor, "%s\n", sFunction);
 		if (iTo & OUTPUT_DEBUG)
 			OutputDebugString(std::format("{}\n", sFunction).c_str());
@@ -67,9 +70,9 @@ void SDK::Output(const char* sFunction, const char* sLog, Color_t tColor,
 			F::Notifications.Add(sFunction, tColor);
 		if (iTo & OUTPUT_MENU)
 			F::Menu.AddOutput("", sFunction, tColor);
-		if (iTo & OUTPUT_CHAT)
+		if (iTo & OUTPUT_CHAT && I::ClientModeShared && I::ClientModeShared->m_pChatElement)
 			I::ClientModeShared->m_pChatElement->ChatPrintf(0, std::format("{}{}\x1", tColor.ToHex(), sFunction).c_str());
-		if (iTo & OUTPUT_PARTY)
+		if (iTo & OUTPUT_PARTY && I::TFPartyClient)
 			I::TFPartyClient->SendPartyChat(sFunction);
 		if (iMessageBox != -1)
 			MessageBox(nullptr, "", sFunction, iMessageBox);
@@ -158,8 +161,11 @@ bool SDK::IsGameWindowInFocus()
 
 double SDK::PlatFloatTime()
 {
-	static auto Plat_FloatTime = U::Memory.GetModuleExport<double(*)()>("tier0.dll", "Plat_FloatTime");
-	return Plat_FloatTime();
+	static double (*Plat_FloatTime)() = nullptr;
+	if (!Plat_FloatTime)
+		Plat_FloatTime = U::Memory.GetModuleExport<double (*)()>("tier0.dll", "Plat_FloatTime");
+
+	return Plat_FloatTime ? Plat_FloatTime() : 0.0;
 }
 
 float SDK::GetHitchance(const Vec3& vAngles, CBaseEntity* pEntity, CTFPlayer* pLocal, CTFWeaponBase* pWeapon)
@@ -235,20 +241,30 @@ int SDK::SharedRandomInt(unsigned iSeed, const char* sName, int iMinVal, int iMa
 
 void SDK::RandomSeed(int iSeed)
 {
-	static auto RandomSeed = U::Memory.GetModuleExport<void(*)(uint32_t)>("vstdlib.dll", "RandomSeed");
-	RandomSeed(iSeed);
+	static void (*RandomSeed)(uint32_t) = nullptr;
+	if (!RandomSeed)
+		RandomSeed = U::Memory.GetModuleExport<void (*)(uint32_t)>("vstdlib.dll", "RandomSeed");
+
+	if (RandomSeed)
+		RandomSeed(iSeed);
 }
 
 int SDK::RandomInt(int iMinVal, int iMaxVal)
 {
-	static auto RandomInt = U::Memory.GetModuleExport<int(*)(int, int)>("vstdlib.dll", "RandomInt");
-	return RandomInt(iMinVal, iMaxVal);
+	static int (*RandomInt)(int, int) = nullptr;
+	if (!RandomInt)
+		RandomInt = U::Memory.GetModuleExport<int (*)(int, int)>("vstdlib.dll", "RandomInt");
+
+	return RandomInt ? RandomInt(iMinVal, iMaxVal) : StdRandomInt(iMinVal, iMaxVal);
 }
 
 float SDK::RandomFloat(float flMinVal, float flMaxVal)
 {
-	static auto RandomFloat = U::Memory.GetModuleExport<float(*)(float, float)>("vstdlib.dll", "RandomFloat");
-	return RandomFloat(flMinVal, flMaxVal);
+	static float (*RandomFloat)(float, float) = nullptr;
+	if (!RandomFloat)
+		RandomFloat = U::Memory.GetModuleExport<float (*)(float, float)>("vstdlib.dll", "RandomFloat");
+
+	return RandomFloat ? RandomFloat(flMinVal, flMaxVal) : StdRandomFloat(flMinVal, flMaxVal);
 }
 
 bool SDK::W2S(const Vec3& vOrigin, Vec3& vScreen, bool bAlways)

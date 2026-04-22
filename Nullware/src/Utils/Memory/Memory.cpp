@@ -91,8 +91,9 @@ using CreateInterfaceFn = void*(*)(const char* pName, int* pReturnCode);
 
 PVOID CMemory::FindInterface(const char* szModule, const char* szObject)
 {
-	const auto CreateInterface = GetModuleExport<CreateInterfaceFn>(szModule, "CreateInterface");
-	return CreateInterface(szObject, nullptr);
+	if (const auto CreateInterface = GetModuleExport<CreateInterfaceFn>(szModule, "CreateInterface"))
+		return CreateInterface(szObject, nullptr);
+	return nullptr;
 }
 
 std::string CMemory::GetModuleOffset(uintptr_t uAddress)
@@ -102,7 +103,8 @@ std::string CMemory::GetModuleOffset(uintptr_t uAddress)
 		return std::format("{:#x}", uAddress);
 
 	uintptr_t uBase = uintptr_t(hModule);
-	if (char buffer[MAX_PATH]; GetModuleBaseName(GetCurrentProcess(), hModule, buffer, sizeof(buffer) / sizeof(char)))
+	char buffer[MAX_PATH];
+	if (GetModuleBaseName(GetCurrentProcess(), hModule, buffer, sizeof(buffer) / sizeof(char)))
 		return std::format("{}+{:#x}", buffer, uAddress - uBase);
 
 	return std::format("{:#x}+{:#x}", uBase, uAddress - uBase);

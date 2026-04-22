@@ -132,9 +132,9 @@ static LONG APIENTRY ExceptionFilter(PEXCEPTION_POINTERS ExceptionInfo) {
                                SDK::GetTime());
 
   ssErrorStream << "\n";
-  if (U::Memory.GetOffsetFromBase(s_lpParam))
+  if (U::Memory.GetOffsetFromBase(uintptr_t(s_lpParam)) != uintptr_t(-1))
     ssErrorStream << std::format("This: {}\n",
-                                 U::Memory.GetModuleOffset(s_lpParam));
+                                 U::Memory.GetModuleOffset(uintptr_t(s_lpParam)));
   ssErrorStream << std::format("RIP: {:#x}\n",
                                ExceptionInfo->ContextRecord->Rip);
   ssErrorStream << std::format("RAX: {:#x}\n",

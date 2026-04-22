@@ -32,5 +32,9 @@
 #if 1
 #include <shlobj.h>
 #endif
+#if 1
+#include <wininet.h>
+#endif
 
 #pragma comment(lib, "shell32.lib")
+#pragma comment(lib, "wininet.lib")

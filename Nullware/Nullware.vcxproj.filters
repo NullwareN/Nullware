@@ -51,12 +51,6 @@
     <ClCompile Include="src\Features\Aimbot\AutoDetonate\AutoDetonate.cpp" />
     <ClCompile Include="src\Features\Aimbot\AutoRocketJump\AutoRocketJump.cpp" />
     <ClCompile Include="src\Features\Aimbot\AutoHeal\AutoHeal.cpp" />
-    <ClCompile Include="src\Features\Lua\Lua.cpp">
-      <Filter>src\Features\Lua</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Features\Lua\lua55.cpp">
-      <Filter>src\Features\Lua</Filter>
-    </ClCompile>
     <ClCompile Include="src\Features\Backtrack\Backtrack.cpp" />
     <ClCompile Include="src\Features\CheaterDetection\CheaterDetection.cpp" />
     <ClCompile Include="src\Features\CritHack\CritHack.cpp" />
@@ -206,6 +200,8 @@
     <ClCompile Include="src\Hooks\CTFPlayerShared_ShouldSuppressPrediction.cpp" />
     <ClCompile Include="src\Hooks\CHLTVCamera_CalcView.cpp" />
     <ClCompile Include="src\Hooks\CTFPlayer_InSameDisguisedTeam.cpp" />
+    <ClCompile Include="src\Features\Lua\Lua.cpp" />
+    <ClCompile Include="src\Features\Lua\lua55.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Utils\UtlVector\UtlVector.h" />
@@ -596,8 +592,5 @@
   <ItemGroup>
     <None Include="cpp.hint" />
     <None Include="packages.config" />
-  </ItemGroup>
-  <ItemGroup>
-    <Library Include="include\freetype\freetype.lib" />
   </ItemGroup>
 </Project>
