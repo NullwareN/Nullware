@@ -1,2 +1,0 @@
-c:\Users\bambe\Downloads\cheat\Nullware-main\Nullware-main\Nullware\src\Features\Backtrack\Backtrack.cpp:428:	int iLatencyScoreboard = pResource->m_iPing(I::EngineClient->GetLocalPlayer());
-c:\Users\bambe\Downloads\cheat\Nullware-main\Nullware-main\Nullware\src\Features\Backtrack\Backtrack.cpp:451:	H::Draw.StringOutlined(fFont, x, y += nTall, Vars::Menu::Theme::Active.Value, Vars::Menu::Theme::Background.Value, align, std::format("Scoreboard {} ms", iLatencyScoreboard).c_str());

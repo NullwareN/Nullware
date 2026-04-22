@@ -1,8 +1,0 @@
-c:\Users\bambe\Downloads\cheat\Nullware-main\Nullware-main\Nullware\src\Features\Backtrack\Backtrack.cpp:448:		H::Draw.StringOutlined(fFont, x, y, Vars::Menu::Theme::Active.Value, Vars::Menu::Theme::Background.Value, align, std::format("Ping {:.0f} (+ {:.0f}) ms", flLatency, flFake).c_str());
-c:\Users\bambe\Downloads\cheat\Nullware-main\Nullware-main\Nullware\src\Features\Backtrack\Backtrack.cpp:450:		H::Draw.StringOutlined(fFont, x, y, Vars::Menu::Theme::Active.Value, Vars::Menu::Theme::Background.Value, align, std::format("Ping {:.0f} ms", flLatency).c_str());
-c:\Users\bambe\Downloads\cheat\Nullware-main\Nullware-main\Nullware\src\Features\NoSpread\NoSpreadHitscan\NoSpreadHitscan.cpp:171:      // if we are doubletapping and firerate is fast enough, prioritize later
-c:\Users\bambe\Downloads\cheat\Nullware-main\Nullware-main\Nullware\src\Features\Simulation\ProjectileSimulation\ProjectileSimulation.cpp:351:		tParams.damping = 0.f;
-c:\Users\bambe\Downloads\cheat\Nullware-main\Nullware-main\Nullware\src\Features\Simulation\ProjectileSimulation\ProjectileSimulation.cpp:352:		tParams.rotdamping = 0.f;
-c:\Users\bambe\Downloads\cheat\Nullware-main\Nullware-main\Nullware\src\Features\Visuals\ESP\ESP.cpp:157:	if (pGroup->m_iESP & ESPEnum::Ping && pResource && !bLocal)
-c:\Users\bambe\Downloads\cheat\Nullware-main\Nullware-main\Nullware\src\Features\Visuals\ESP\ESP.cpp:159:		int iPing = pResource->m_iPing(iIndex);
-c:\Users\bambe\Downloads\cheat\Nullware-main\Nullware-main\Nullware\src\Features\Visuals\ESP\ESP.cpp:160:		if (iPing && (iPing >= 200 || iPing <= 5))
