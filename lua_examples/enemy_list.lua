@@ -1,6 +1,5 @@
 -- ============================================================
 --  enemy_list.lua
---  แสดงรายชื่อศัตรูทางซ้ายมือ พร้อม HP และ class
 -- ============================================================
 
 local CLASS_NAMES = {
@@ -27,7 +26,6 @@ local function onRender()
     local enemies = entities.GetEnemyPlayers()
     if #enemies == 0 then return end
 
-    -- กรองเฉพาะ alive + not dormant
     local alive = {}
     for _, e in ipairs(enemies) do
         if e:IsAlive() and not e:IsDormant() then
@@ -36,7 +34,6 @@ local function onRender()
     end
     if #alive == 0 then return end
 
-    -- วาดพื้นหลังพาเนล
     local panelH = #alive * LINE_H + PADDING * 2
     draw.Rect(PANEL_X, PANEL_Y, 140, panelH, { r=0, g=0, b=0, a=160 }, true)
 
@@ -47,12 +44,10 @@ local function onRender()
         local cls     = CLASS_NAMES[e:GetClass()] or "?"
         local y       = PANEL_Y + PADDING + (i - 1) * LINE_H
 
-        -- ชื่อ + class
         local label = string.format("[%s] %s", cls, name)
         if #label > 18 then label = label:sub(1, 17) .. "…" end
         draw.Text(PANEL_X + PADDING, y, label, { r=220, g=220, b=220, a=255 }, false)
 
-        -- HP สี
         local hpTxt = string.format("%d/%d", hp, maxhp)
         local tw = draw.GetTextSize(hpTxt)
         draw.Text(PANEL_X + 140 - tw - PADDING, y, hpTxt, hpToColor(hp, maxhp), false)
@@ -60,4 +55,4 @@ local function onRender()
 end
 
 callbacks.Register("OnRender", "enemy_list", onRender)
-print("[enemy_list] loaded — แสดงศัตรู " .. #(entities.GetEnemyPlayers()) .. " คน")
+print("[enemy_list] loaded " .. #(entities.GetEnemyPlayers()) .. " player")

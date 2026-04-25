@@ -1,5 +1,5 @@
 -- ============================================================
---  esp_healthbar.lua (FIXED)
+--  esp_healthbar.lua 
 -- ============================================================
 
 local function lerp(a, b, t)
@@ -38,7 +38,6 @@ local function onRender()
         local fx, fy = engine.WorldToScreen(origin.x, origin.y, origin.z)
         local hx, hy = engine.WorldToScreen(head.x,   head.y,   head.z)
 
-        -- FIX: strict check
         if not fx or not fy or not hx or not hy then goto continue end
 
         local hp    = ent:GetHealth()
@@ -48,19 +47,16 @@ local function onRender()
         local pct = clamp(hp / maxhp, 0, 1)
 
         local height = math.abs(fy - hy)
-        if height < 5 then goto continue end -- prevent tiny glitch bars
+        if height < 5 then goto continue end
 
         local barW = 4
         local barX = math.floor(hx - height * 0.35) - barW - 2
 
-        -- background
         draw.Rect(barX, hy, barW, height, { r=0, g=0, b=0, a=180 }, true)
 
-        -- fill
         local fillH = math.floor(height * pct)
         draw.Rect(barX, hy + (height - fillH), barW, fillH, healthColor(hp, maxhp), true)
 
-        -- hp text
         local txt = tostring(hp)
         local tw, th = draw.GetTextSize(txt)
         draw.Text(math.floor(hx - tw / 2), math.floor(hy - th - 2), txt, { r=255, g=255, b=255, a=255 }, true)
