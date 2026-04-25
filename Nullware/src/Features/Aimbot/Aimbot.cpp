@@ -9,7 +9,6 @@
 #include "AutoRocketJump/AutoRocketJump.h"
 #include "../Misc/Misc.h"
 #include "../Visuals/Visuals.h"
-#include "../Ticks/Ticks.h"
 
 bool CAimbot::ShouldRun(CTFPlayer* pLocal, CTFWeaponBase* pWeapon)
 {
@@ -50,9 +49,9 @@ void CAimbot::RunMain(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, CUserCmd* pCmd)
 	}
 
 	m_bRan = false;
-	if (abs(G::AimTarget.m_iTickCount - I::GlobalVars->tickcount) > G::AimTarget.m_iDuration + 3)
+	if (abs(G::AimTarget.m_iTickCount - I::GlobalVars->tickcount) > G::AimTarget.m_iDuration)
 		G::AimTarget = {};
-	if (abs(G::AimPoint.m_iTickCount - I::GlobalVars->tickcount) > G::AimPoint.m_iDuration + 3)
+	if (abs(G::AimPoint.m_iTickCount - I::GlobalVars->tickcount) > G::AimPoint.m_iDuration)
 		G::AimPoint = {};
 
 	if (pCmd->weaponselect)
@@ -72,7 +71,6 @@ void CAimbot::RunMain(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, CUserCmd* pCmd)
 
 void CAimbot::Run(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, CUserCmd* pCmd)
 {
-	F::Ticks.SaveShootPos(pLocal);
 	Store(false);
 
 	RunMain(pLocal, pWeapon, pCmd);
@@ -92,26 +90,13 @@ void CAimbot::Draw(CTFPlayer* pLocal)
 	if (Vars::Aimbot::General::AimFOV.Value >= 90.f)
 		return;
 
-	// Compute actual aspect ratio: use the custom AR override when set, otherwise
-	// derive it from the current screen dimensions.
-	const float flCustomAR = Vars::Visuals::UI::AspectRatio.Value;
-	const float flAspectRatio = (flCustomAR > 0.f)
-		? flCustomAR
-		: (H::Draw.m_nScreenW > 0 && H::Draw.m_nScreenH > 0
-			? static_cast<float>(H::Draw.m_nScreenW) / static_cast<float>(H::Draw.m_nScreenH)
-			: (16.f / 9.f));
-
-	const float flRadius = tanf(DEG2RAD(Vars::Aimbot::General::AimFOV.Value))
-		/ tanf(DEG2RAD(m_flFOV) / 2)
-		* static_cast<float>(H::Draw.m_nScreenW)
-		* (3.f / 4.f)
-		/ flAspectRatio;
+	float flRadius = tanf(Math::Deg2Rad(Vars::Aimbot::General::AimFOV.Value)) / tanf(Math::Deg2Rad(G::FOV) / 2) * float(H::Draw.m_nScreenW) * (4.f / 6.f) / (16.f / 9.f);
 	H::Draw.LineCircle(H::Draw.m_nScreenW / 2, H::Draw.m_nScreenH / 2, flRadius, 68, Vars::Colors::FOVCircle.Value);
 }
 
 void CAimbot::Store(CBaseEntity* pEntity, size_t iSize)
 {
-	if (!Vars::Visuals::Simulation::RealPath.Value)
+	if (!Vars::Visuals::Prediction::RealPath.Value)
 		return;
 
 	if (!pEntity->IsPlayer())
@@ -119,7 +104,8 @@ void CAimbot::Store(CBaseEntity* pEntity, size_t iSize)
 
 	if (auto pResource = H::Entities.GetResource())
 	{
-		m_tPath = { { pEntity->m_vecOrigin() }, I::GlobalVars->curtime + Vars::Visuals::Simulation::DrawDuration.Value, Color_t(), Vars::Visuals::Simulation::RealPath.Value };
+		float flDuration = Vars::Visuals::Prediction::PlayerDrawDuration.Value ? Vars::Visuals::Prediction::PlayerDrawDuration.Value : 5.f;
+		m_tPath = { { pEntity->m_vecOrigin() }, I::GlobalVars->curtime + flDuration, Color_t(), Vars::Visuals::Prediction::RealPath.Value };
 		m_iSize = iSize;
 		m_iPlayer = pResource->m_iUserID(pEntity->entindex());
 	}
@@ -127,7 +113,7 @@ void CAimbot::Store(CBaseEntity* pEntity, size_t iSize)
 
 void CAimbot::Store(bool bFrameStageNotify)
 {
-	if (!Vars::Visuals::Simulation::RealPath.Value)
+	if (!Vars::Visuals::Prediction::RealPath.Value)
 		return;
 
 	int iLag = 1;

@@ -25,6 +25,7 @@ MAKE_HOOK(CHLClient_FrameStageNotify, U::Memory.GetVirtual(I::Client, 35), void,
 		return CALL_ORIGINAL(rcx, curStage);
 
 	CALL_ORIGINAL(rcx, curStage);
+
 	F::Lua.OnFrameStageNotify(curStage);
 
 	switch (curStage)

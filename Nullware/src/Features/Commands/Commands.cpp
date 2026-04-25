@@ -94,7 +94,7 @@ static std::unordered_map<uint32_t, CommandCallback> s_mCommands = {
 bool CCommands::Run(const char* sCmd, std::deque<const char*>& vArgs)
 {
 	std::string sLower = sCmd;
-	std::transform(sLower.begin(), sLower.end(), sLower.begin(), [](unsigned char c) { return std::tolower(c); });
+	std::transform(sLower.begin(), sLower.end(), sLower.begin(), ::tolower);
 
 	auto uHash = FNV1A::Hash32(sLower.c_str());
 	if (!s_mCommands.contains(uHash))

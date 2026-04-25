@@ -32,7 +32,7 @@ void CFakeAngle::Run(CTFPlayer* pLocal)
 	memcpy(pOldAnimState, pAnimState, sizeof(CTFPlayerAnimState));
 
 	I::GlobalVars->frametime = 0.f;
-	Vec2 vAngle = Vec2(std::clamp(F::AntiAim.vFakeAngles.x, -89.f, 89.f), F::AntiAim.vFakeAngles.y);
+	Vec2 vAngle = { std::clamp(F::AntiAim.vFakeAngles.x, -89.f, 89.f), F::AntiAim.vFakeAngles.y };
 	if (pLocal->IsTaunting() && pLocal->m_bAllowMoveDuringTaunt())
 		pLocal->m_flTauntYaw() = vAngle.y;
 	pAnimState->Update(pAnimState->m_flCurrentFeetYaw = /*pAnimState->m_flEyeYaw =*/ vAngle.y, vAngle.x);

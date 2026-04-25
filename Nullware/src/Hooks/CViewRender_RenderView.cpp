@@ -8,7 +8,7 @@ MAKE_HOOK(CViewRender_RenderView, U::Memory.GetVirtual(I::ViewRender, 6), void,
 	DEBUG_RETURN(CViewRender_RenderView, rcx, view, nClearFlags, whatToDraw);
 
 	CALL_ORIGINAL(rcx, view, nClearFlags, whatToDraw);
-	if (SDK::CleanScreenshot() || G::Unload || F::CameraWindow.m_bDrawing)
+	if (SDK::CleanScreenshot() || G::Unload)
 		return;
 
 	F::CameraWindow.RenderView(rcx, view);

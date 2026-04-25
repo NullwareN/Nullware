@@ -2,6 +2,7 @@
 
 #include "../Features/EnginePrediction/EnginePrediction.h"
 #include "../Features/Spectate/Spectate.h"
+#include "../Features/Lua/LuaFeature.h"
 
 MAKE_HOOK(CHLClient_LevelShutdown, U::Memory.GetVirtual(I::Client, 7), void,
 	void* rcx)
@@ -11,6 +12,8 @@ MAKE_HOOK(CHLClient_LevelShutdown, U::Memory.GetVirtual(I::Client, 7), void,
 	H::Entities.Clear(true);
 	F::EnginePrediction.Unload();
 	F::Spectate.Reset();
+
+	F::Lua.OnLevelShutdown();
 
 	CALL_ORIGINAL(rcx);
 }

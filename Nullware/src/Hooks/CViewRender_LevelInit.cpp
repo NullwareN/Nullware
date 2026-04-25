@@ -8,6 +8,7 @@
 #include "../Features/CheaterDetection/CheaterDetection.h"
 #include "../Features/Resolver/Resolver.h"
 #include "../Features/Spectate/Spectate.h"
+#include "../Features/Lua/LuaFeature.h"
 
 MAKE_HOOK(CViewRender_LevelInit, U::Memory.GetVirtual(I::ViewRender, 1), void,
 	void* rcx)
@@ -23,6 +24,8 @@ MAKE_HOOK(CViewRender_LevelInit, U::Memory.GetVirtual(I::ViewRender, 1), void,
 	F::CheaterDetection.Reset();
 	F::Resolver.Reset();
 	F::Spectate.Reset();
+
+	F::Lua.OnLevelInit();
 
 	CALL_ORIGINAL(rcx);
 }

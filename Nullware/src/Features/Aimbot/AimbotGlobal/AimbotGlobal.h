@@ -44,8 +44,6 @@ public:
 	bool ShouldAim();
 	bool ShouldHoldAttack(CTFWeaponBase* pWeapon);
 	bool ValidBomb(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, CBaseEntity* pBomb);
-
-	bool ComputeAimAngles(Vec3 vCurAngle, Vec3 vToAngle, Vec3& vOut, int iMethod = Vars::Aimbot::General::AimType.Value);
 };
 
 ADD_FEATURE(CAimbotGlobal, AimbotGlobal);

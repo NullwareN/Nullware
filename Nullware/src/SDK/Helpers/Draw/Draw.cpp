@@ -4,8 +4,7 @@
 #include "../../Definitions/Interfaces.h"
 #include "../../../Utils/Math/Math.h"
 #include "../../../Utils/Timer/Timer.h"
-#include <array>
-#include <ranges>
+#include "../../../Features/ImGui/Render.h"
 
 MAKE_SIGNATURE(CHudBaseDeathNotice_GetIcon, "client.dll", "40 53 48 81 EC ? ? ? ? 48 8B DA", 0x0);
 MAKE_SIGNATURE(RenderLine, "engine.dll", "48 89 5C 24 ? 48 89 74 24 ? 44 89 44 24", 0x0);
@@ -26,7 +25,7 @@ void CDraw::Start(bool bBadFontCheck)
 		if (tTimer.Run(1.f))
 		{
 			if (!GetTextSize("", H::Fonts.GetFont(FONT_ESP)).y)
-				H::Fonts.Reload(Vars::Menu::Scale[DEFAULT_BIND]);
+				H::Fonts.Reload();
 		}
 	}
 }
@@ -62,6 +61,20 @@ void CDraw::UpdateW2SMatrix()
 	}
 }
 
+void CDraw::UpdateKeyStrings()
+{
+	if (!F::Render.m_bLoaded)
+		return;
+
+	static HKL pLastLayout = nullptr;
+	if (HKL pCurrLayout = GetKeyboardLayout(0); pCurrLayout != pLastLayout)
+	{
+		pLastLayout = pCurrLayout;
+		for (short iKey = 0; iKey < 256; iKey++)
+			U::KeyHandler.String(iKey, true);
+	}
+}
+
 Vec2 CDraw::GetTextSize(const char* text, const Font_t& tFont)
 {
 	int w = 0, h = 0;
@@ -76,15 +89,13 @@ Vec2 CDraw::GetTextSize(const wchar_t* text, const Font_t& tFont)
 	return { float(w), float(h) };
 }
 
+static wchar_t s_wstr[1024] = { '\0' };
 void CDraw::String(const Font_t& tFont, int x, int y, Color_t tColor, EAlign eAlign, const char* str)
 {
-	if (!str || *str == '\0')
-		return;
-
-	const std::wstring wstr = SDK::ConvertUtf8ToWide(str);
+	wsprintfW(s_wstr, L"%hs", str);
 	const auto dwFont = tFont.m_dwFont;
 
-	Vec2 vSize = GetTextSize(wstr.c_str(), tFont);
+	Vec2 vSize = GetTextSize(str, tFont);
 	switch (eAlign)
 	{
 	case ALIGN_TOPLEFT: break;
@@ -101,7 +112,7 @@ void CDraw::String(const Font_t& tFont, int x, int y, Color_t tColor, EAlign eAl
 	I::MatSystemSurface->DrawSetTextPos(x, y);
 	I::MatSystemSurface->DrawSetTextFont(dwFont);
 	I::MatSystemSurface->DrawSetTextColor(tColor);
-	I::MatSystemSurface->DrawPrintText(wstr.c_str(), int(wstr.length()));
+	I::MatSystemSurface->DrawPrintText(s_wstr, int(wcslen(s_wstr)));
 }
 void CDraw::String(const Font_t& tFont, int x, int y, Color_t tColor, EAlign eAlign, const wchar_t* wstr)
 {
@@ -126,15 +137,15 @@ void CDraw::String(const Font_t& tFont, int x, int y, Color_t tColor, EAlign eAl
 	I::MatSystemSurface->DrawSetTextColor(tColor);
 	I::MatSystemSurface->DrawPrintText(wstr, int(wcslen(wstr)));
 }
-void CDraw::StringOutlined(const Font_t& tFont, int x, int y, Color_t tColor, Color_t tColorOut, EAlign eAlign, const char* str, bool bAlpha)
+void CDraw::StringOutlined(const Font_t& tFont, int x, int y, Color_t tColor, Color_t tColorOut, EAlign eAlign, const char* str)
 {
-	if (!str || *str == '\0')
-		return;
+	if (Vars::Menu::CheapText.Value)
+		return String(tFont, x, y, tColor, eAlign, str);
 
-	const std::wstring wstr = SDK::ConvertUtf8ToWide(str);
+	wsprintfW(s_wstr, L"%hs", str);
 	const auto dwFont = tFont.m_dwFont;
 
-	Vec2 vSize = GetTextSize(wstr.c_str(), tFont);
+	Vec2 vSize = GetTextSize(s_wstr, tFont);
 	switch (eAlign)
 	{
 	case ALIGN_TOPLEFT: break;
@@ -148,31 +159,30 @@ void CDraw::StringOutlined(const Font_t& tFont, int x, int y, Color_t tColor, Co
 	case ALIGN_BOTTOMRIGHT: x -= vSize.x; y -= vSize.y; break;
 	}
 
-	std::vector<std::pair<int, int>> vOutline = { { 1, 1 } };
-	if (!Vars::Menu::CheapText.Value)
-		vOutline = { { -1, 0 }, { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, -1 }, { 1, 1 }, { -1, 1 }, { 1, -1 } };
-
-	if (bAlpha && !Vars::Menu::CheapText.Value)
-		tColorOut = tColorOut.Alpha(tColorOut.a * Math::RemapVal(tColorOut.Brightness(), 0, 255, 0.5f, 0.1f));
-
+	tColorOut.a *= Math::RemapVal(tColorOut.Brightness(), 0, 255, 0.5f, 0.1f);
 	if (tColorOut.a)
 	{
+		std::vector<std::pair<int, int>> vOutline = { { -1, 0 }, { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, -1 }, { 1, 1 }, { -1, 1 }, { 1, -1 } };
+
 		for (auto& [x2, y2] : vOutline)
 		{
 			I::MatSystemSurface->DrawSetTextPos(x + x2, y + y2);
 			I::MatSystemSurface->DrawSetTextFont(dwFont);
 			I::MatSystemSurface->DrawSetTextColor(tColorOut);
-			I::MatSystemSurface->DrawPrintText(wstr.c_str(), int(wstr.length()));
+			I::MatSystemSurface->DrawPrintText(s_wstr, int(wcslen(s_wstr)));
 		}
 	}
 
 	I::MatSystemSurface->DrawSetTextPos(x, y);
 	I::MatSystemSurface->DrawSetTextFont(dwFont);
 	I::MatSystemSurface->DrawSetTextColor(tColor);
-	I::MatSystemSurface->DrawPrintText(wstr.c_str(), int(wstr.length()));
+	I::MatSystemSurface->DrawPrintText(s_wstr, int(wcslen(s_wstr)));
 }
-void CDraw::StringOutlined(const Font_t& tFont, int x, int y, Color_t tColor, Color_t tColorOut, EAlign eAlign, const wchar_t* wstr, bool bAlpha)
+void CDraw::StringOutlined(const Font_t& tFont, int x, int y, Color_t tColor, Color_t tColorOut, EAlign eAlign, const wchar_t* wstr)
 {
+	if (Vars::Menu::CheapText.Value)
+		return String(tFont, x, y, tColor, eAlign, wstr);
+
 	const auto dwFont = tFont.m_dwFont;
 
 	Vec2 vSize = GetTextSize(wstr, tFont);
@@ -188,16 +198,12 @@ void CDraw::StringOutlined(const Font_t& tFont, int x, int y, Color_t tColor, Co
 	case ALIGN_BOTTOM: x -= vSize.x / 2; y -= vSize.y; break;
 	case ALIGN_BOTTOMRIGHT: x -= vSize.x; y -= vSize.y; break;
 	}
-
-	std::vector<std::pair<int, int>> vOutline = { { 1, 1 } };
-	if (!Vars::Menu::CheapText.Value)
-		vOutline = { { -1, 0 }, { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, -1 }, { 1, 1 }, { -1, 1 }, { 1, -1 } };
-
-	if (bAlpha && !Vars::Menu::CheapText.Value)
-		tColorOut = tColorOut.Alpha(tColorOut.a * Math::RemapVal(tColorOut.Brightness(), 0, 255, 0.5f, 0.1f));
-
+	
+	tColorOut.a *= Math::RemapVal(tColorOut.Brightness(), 0, 255, 0.5f, 0.1f);
 	if (tColorOut.a)
 	{
+		std::vector<std::pair<int, int>> vOutline = { { -1, 0 }, { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, -1 }, { 1, 1 }, { -1, 1 }, { 1, -1 } };
+
 		for (auto& [x2, y2] : vOutline)
 		{
 			I::MatSystemSurface->DrawSetTextPos(x + x2, y + y2);
@@ -299,7 +305,7 @@ void CDraw::FillRoundRect(int x, int y, int w, int h, int iRadius, Color_t tColo
 		const float a = 90.f * i;
 		for (int j = 0; j < _iCount; j++)
 		{
-			const float _a = DEG2RAD(a + j * flDelta);
+			const float _a = Math::Deg2Rad(a + j * flDelta);
 			vVertices.emplace_back(Vertex_t({ { _x + iRadius * sinf(_a), _y - iRadius * cosf(_a) } }));
 		}
 	}
@@ -321,7 +327,7 @@ void CDraw::LineRoundRect(int x, int y, int w, int h, int iRadius, Color_t tColo
 		const float a = 90.f * i;
 		for (int j = 0; j < _iCount; j++)
 		{
-			const float _a = DEG2RAD(a + j * flDelta);
+			const float _a = Math::Deg2Rad(a + j * flDelta);
 			vVertices.emplace_back(Vertex_t({ { _x + iRadius * sinf(_a), _y - iRadius * cosf(_a) } }));
 		}
 	}
@@ -333,8 +339,8 @@ void CDraw::FillCircle(int x, int y, float iRadius, int iSegments, Color_t tColo
 {
 	std::vector<Vertex_t> vVertices = {};
 
-	const float step = static_cast<float>(PI) * 2.0f / iSegments;
-	for (float a = 0; a < PI * 2.0f; a += step)
+	const float flStep = Math::PI * 2.f / iSegments;
+	for (float a = 0; a < Math::PI * 2.f; a += flStep)
 		vVertices.emplace_back(Vector2D{ iRadius * cosf(a) + x, iRadius * sinf(a) + y });
 
 	FillPolygon(vVertices, tColor);
@@ -492,22 +498,23 @@ void CDraw::RenderLine(const Vec3& vStart, const Vec3& vEnd, Color_t tColor, boo
 
 void CDraw::RenderPath(const std::vector<Vec3>& vPath, Color_t tColor, bool bZBuffer, int iStyle, float flTime, int iSeparatorSpacing, float flSeparatorLength)
 {
-	if (!tColor.a || iStyle == Vars::Visuals::Simulation::StyleEnum::Off)
+	if (!tColor.a || iStyle == Vars::Visuals::Path::StyleEnum::Off)
 		return;
 
+	bool bTimed = flTime < 0.f;
 	for (size_t i = 1; i < vPath.size(); i++)
 	{
-		if (flTime < 0.f && vPath.size() - i > -flTime)
+		if (bTimed && vPath.size() - i > -flTime)
 			continue;
 
 		switch (iStyle)
 		{
-		case Vars::Visuals::Simulation::StyleEnum::Line:
+		case Vars::Visuals::Path::StyleEnum::Line:
 		{
 			RenderLine(vPath[i - 1], vPath[i], tColor, bZBuffer);
 			break;
 		}
-		case Vars::Visuals::Simulation::StyleEnum::Separators:
+		case Vars::Visuals::Path::StyleEnum::Separators:
 		{
 			RenderLine(vPath[i - 1], vPath[i], tColor, bZBuffer);
 			if (!(i % iSeparatorSpacing))
@@ -521,13 +528,13 @@ void CDraw::RenderPath(const std::vector<Vec3>& vPath, Color_t tColor, bool bZBu
 			}
 			break;
 		}
-		case Vars::Visuals::Simulation::StyleEnum::Spaced:
+		case Vars::Visuals::Path::StyleEnum::Spaced:
 		{
 			if (!(i % 2))
 				RenderLine(vPath[i - 1], vPath[i], tColor, bZBuffer);
 			break;
 		}
-		case Vars::Visuals::Simulation::StyleEnum::Arrows:
+		case Vars::Visuals::Path::StyleEnum::Arrows:
 		{
 			if (!(i % 3))
 			{
@@ -544,7 +551,7 @@ void CDraw::RenderPath(const std::vector<Vec3>& vPath, Color_t tColor, bool bZBu
 			}
 			break;
 		}
-		case Vars::Visuals::Simulation::StyleEnum::Boxes:
+		case Vars::Visuals::Path::StyleEnum::Boxes:
 		{
 			RenderLine(vPath[i - 1], vPath[i], tColor, bZBuffer);
 			if (!(i % iSeparatorSpacing))

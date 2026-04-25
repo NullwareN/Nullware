@@ -12,23 +12,11 @@ struct TickRecord
 {
 	float m_flSimTime = 0.f;
 	Vec3 m_vOrigin = {};
-	Vec3 m_vAngles = {};
 	Vec3 m_vMins = {};
 	Vec3 m_vMaxs = {};
 	bool m_bOnShot = false;
 	bool m_bInvalid = false;
 	matrix3x4 m_aBones[MAXSTUDIOBONES];
-
-	TickRecord() {}
-	TickRecord(float flSimTime, Vec3 vOrigin, Vec3 vAngles, Vec3 vMins, Vec3 vMaxs, bool bOnShot = false)
-	{
-		m_flSimTime = flSimTime;
-		m_vOrigin = vOrigin;
-		m_vAngles = vAngles;
-		m_vMins = vMins;
-		m_vMaxs = vMaxs;
-		m_bOnShot = bOnShot;
-	}
 };
 
 class CBacktrack

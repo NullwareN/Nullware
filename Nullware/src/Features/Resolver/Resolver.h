@@ -1,6 +1,5 @@
 #pragma once
 #include "../../SDK/SDK.h"
-#include <optional>
 
 struct ResolveData
 {
@@ -16,7 +15,6 @@ struct ResolveData
 	bool m_bAutoSetPitch = true;
 	bool m_bFirstOOBPitch = false;
 	bool m_bInversePitch = false;
-	bool m_bJittering = false;
 };
 
 class CResolver

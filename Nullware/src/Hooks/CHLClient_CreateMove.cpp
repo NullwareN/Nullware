@@ -259,8 +259,6 @@ MAKE_HOOK(CHLClient_CreateMove, U::Memory.GetVirtual(I::Client, 21), void,
 		F::Misc.RunPost(pLocal, pCmd);
 		F::PacketManip.Run(pLocal, pWeapon, pCmd, pSendPacket);
 		F::Visuals.CreateMove(pLocal, pWeapon);
-		F::Lua.Update();
-		F::Lua.OnCreateMove(pCmd);
 		F::Ticks.CreateMove(pLocal, pWeapon, pCmd, pSendPacket);
 		F::AntiAim.Run(pLocal, pWeapon, pCmd, *pSendPacket);
 		F::NoSpreadHitscan.AskForPlayerPerf();
@@ -268,6 +266,8 @@ MAKE_HOOK(CHLClient_CreateMove, U::Memory.GetVirtual(I::Client, 21), void,
 
 	AntiCheatCompatibility(pCmd, pSendPacket);
 	LocalAnimations(pLocal, pCmd, *pSendPacket);
+
+	F::Lua.OnCreateMove(pCmd);
 
 	G::Choking = !*pSendPacket;
 	G::LastUserCmd = pCmd;

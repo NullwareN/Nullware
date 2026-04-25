@@ -12,13 +12,9 @@ DWORD WINAPI MainThread(LPVOID lpParam)
 
 	U::ExceptionHandler.Unload();
 
-#ifdef _WINDLL
 	FreeLibraryAndExitThread(static_cast<HMODULE>(lpParam), EXIT_SUCCESS);
-#endif
-	return 0;
 }
 
-#ifdef _WINDLL
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 {
 	if (fdwReason == DLL_PROCESS_ATTACH)
@@ -29,10 +25,3 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 
 	return TRUE;
 }
-#else
-int main()
-{
-	MainThread(GetModuleHandle(NULL));
-	return 0;
-}
-#endif

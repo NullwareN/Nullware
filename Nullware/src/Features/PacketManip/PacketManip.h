@@ -1,12 +1,12 @@
 #pragma once
 #include "../../SDK/SDK.h"
-#include "AntiAim/AntiAim.h"
 #include "FakeLag/FakeLag.h"
+#include "AntiAim/AntiAim.h"
 
-class CPacketManip {
+class CPacketManip
+{
 public:
-  void Run(CTFPlayer *pLocal, CTFWeaponBase *pWeapon, CUserCmd *pCmd,
-           bool *pSendPacket);
+	void Run(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, CUserCmd* pCmd, bool* pSendPacket);
 };
 
 ADD_FEATURE(CPacketManip, PacketManip);

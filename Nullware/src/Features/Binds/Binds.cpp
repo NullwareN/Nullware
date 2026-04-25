@@ -304,49 +304,49 @@ void CBinds::RemoveBind(int iBind, bool bForce)
 	}
 
 	std::vector<int> vErases = {};
-	std::function<void(int)> searchBinds = [&](int iIndex)
+	std::function<void(int)> fSearchBinds = [&](int iIndex)
+	{
+		for (int iBind = 0; iBind < m_vBinds.size(); iBind++)
 		{
-			for (int iBind = 0; iBind < m_vBinds.size(); iBind++)
-			{
-				auto& tBind = m_vBinds[iBind];
-				if (iIndex == tBind.m_iParent && iIndex != iBind)
-					searchBinds(iBind);
-			}
-			vErases.push_back(iIndex);
-		};
-	auto removeBind = [&](int iIndex)
+			auto& tBind = m_vBinds[iBind];
+			if (iIndex == tBind.m_iParent && iIndex != iBind)
+				fSearchBinds(iBind);
+		}
+		vErases.push_back(iIndex);
+	};
+	auto fRemoveBind = [&](int iIndex)
+	{
+		if (iIndex < m_vBinds.size())
+			m_vBinds.erase(std::next(m_vBinds.begin(), iIndex));
+		for (auto& tBind : m_vBinds)
 		{
-			if (iIndex < m_vBinds.size())
-				m_vBinds.erase(std::next(m_vBinds.begin(), iIndex));
-			for (auto& tBind : m_vBinds)
-			{
-				if (tBind.m_iParent != DEFAULT_BIND && tBind.m_iParent > iIndex)
-					tBind.m_iParent--;
-			}
+			if (tBind.m_iParent != DEFAULT_BIND && tBind.m_iParent > iIndex)
+				tBind.m_iParent--;
+		}
 
-			for (auto& pBase : G::Vars)
-			{
-				Remove(bool, iIndex)
-				else Remove(int, iIndex)
-				else Remove(float, iIndex)
-				else Remove(IntRange_t, iIndex)
-				else Remove(FloatRange_t, iIndex)
-				else Remove(std::string, iIndex)
-				else Remove(VA_LIST(std::vector<std::pair<std::string, Color_t>>), iIndex)
-				else Remove(Color_t, iIndex)
-				else Remove(Gradient_t, iIndex)
-				else Remove(Vec3, iIndex)
-				else Remove(DragBox_t, iIndex)
-				else Remove(WindowBox_t, iIndex)
-			}
-		};
-	searchBinds(iBind);
-	std::sort(vErases.begin(), vErases.end(), [&](const int a, const int b) -> bool
+		for (auto& pBase : G::Vars)
 		{
-			return a > b;
-		});
+			Remove(bool, iIndex)
+			else Remove(int, iIndex)
+			else Remove(float, iIndex)
+			else Remove(IntRange_t, iIndex)
+			else Remove(FloatRange_t, iIndex)
+			else Remove(std::string, iIndex)
+			else Remove(VA_LIST(std::vector<std::pair<std::string, Color_t>>), iIndex)
+			else Remove(Color_t, iIndex)
+			else Remove(Gradient_t, iIndex)
+			else Remove(Vec3, iIndex)
+			else Remove(DragBox_t, iIndex)
+			else Remove(WindowBox_t, iIndex)
+		}
+	};
+	fSearchBinds(iBind);
+	std::sort(vErases.begin(), vErases.end(), [&](const int a, const int b) -> bool
+	{
+		return a > b;
+	});
 	for (auto iIndex : vErases)
-		removeBind(iIndex);
+		fRemoveBind(iIndex);
 }
 
 int CBinds::GetParent(int iBind)
@@ -365,8 +365,7 @@ bool CBinds::HasChildren(int iBind)
 bool CBinds::WillBeEnabled(int iBind)
 {
 	Bind_t tBind;
-	int iSafety = 0;
-	while (GetBind(iBind, &tBind) && iSafety++ < 64)
+	while (GetBind(iBind, &tBind))
 	{
 		if (!tBind.m_bEnabled)
 			return false;
@@ -404,18 +403,22 @@ static inline void SwapMain(BaseVar*& pBase, int iBind1, int iBind2)
 
 void CBinds::Move(int i1, int i2)
 {
-	if (i1 == i2 || i1 < 0 || i1 >= m_vBinds.size() || i2 < 0 || i2 >= m_vBinds.size())
-		return;
+	auto& tBind1 = m_vBinds[i1];
+	auto& tBind2 = m_vBinds[i2];
+	auto tTemp = tBind1;
+	tBind1 = tBind2;
+	tBind2 = tTemp;
 
-	std::swap(m_vBinds[i1], m_vBinds[i2]);
-
+	std::vector<Bind_t*> vBinds1, vBinds2;
 	for (auto& tBind : m_vBinds)
 	{
 		if (tBind.m_iParent == i1)
-			tBind.m_iParent = i2;
+			vBinds1.push_back(&tBind);
 		else if (tBind.m_iParent == i2)
-			tBind.m_iParent = i1;
+			vBinds2.push_back(&tBind);
 	}
+	for (auto pBind : vBinds1) pBind->m_iParent = i2;
+	for (auto pBind : vBinds2) pBind->m_iParent = i1;
 
 	for (auto& pBase : G::Vars)
 	{

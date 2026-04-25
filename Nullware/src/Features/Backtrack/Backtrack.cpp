@@ -1,7 +1,4 @@
 #include "Backtrack.h"
-#include <algorithm>
-#include <format>
-#include <string>
 
 #include "../PacketManip/FakeLag/FakeLag.h"
 #include "../Ticks/Ticks.h"
@@ -28,15 +25,15 @@ float CBacktrack::GetReal(int iFlow, bool bNoFake)
 
 float CBacktrack::GetWishFake()
 {
-	return Math::Clamp(Vars::Backtrack::Latency.Value / 1000.f, 0.f, m_flMaxUnlag);
+	return std::clamp(Vars::Backtrack::Latency.Value / 1000.f, 0.f, m_flMaxUnlag);
 }
 
 float CBacktrack::GetWishLerp()
 {
 	if (Vars::Misc::Game::AntiCheatCompatibility.Value)
-		return Math::Clamp(Vars::Backtrack::Interp.Value / 1000.f, G::Lerp, 0.1f);
+		return std::clamp(Vars::Backtrack::Interp.Value / 1000.f, G::Lerp, 0.1f);
 
-	return Math::Clamp(Vars::Backtrack::Interp.Value / 1000.f, G::Lerp, m_flMaxUnlag);
+	return std::clamp(Vars::Backtrack::Interp.Value / 1000.f, G::Lerp, m_flMaxUnlag);
 }
 
 float CBacktrack::GetFakeLatency()
@@ -151,7 +148,7 @@ std::vector<TickRecord*> CBacktrack::GetValidRecords(std::vector<TickRecord*>& v
 		return {};
 
 	std::vector<TickRecord*> vReturn = {};
-	float flCorrect = Math::Clamp(GetReal(MAX_FLOWS, false) + ROUND_TO_TICKS(GetFakeInterp()), 0.f, m_flMaxUnlag);
+	float flCorrect = std::clamp(GetReal(MAX_FLOWS, false) + ROUND_TO_TICKS(GetFakeInterp()), 0.f, m_flMaxUnlag);
 	int iServerTick = m_iTickCount + GetAnticipatedChoke() + Vars::Backtrack::Offset.Value + TIME_TO_TICKS(GetReal(FLOW_OUTGOING));
 
 	if (!Vars::Misc::Game::AntiCheatCompatibility.Value && GetWindow())
@@ -183,23 +180,23 @@ std::vector<TickRecord*> CBacktrack::GetValidRecords(std::vector<TickRecord*>& v
 	{
 		if (bDistance)
 			std::sort(vReturn.begin(), vReturn.end(), [&](const TickRecord* a, const TickRecord* b) -> bool
-				{
-					if (Vars::Backtrack::PreferOnShot.Value && a->m_bOnShot != b->m_bOnShot)
-						return a->m_bOnShot > b->m_bOnShot;
+			{
+				if (Vars::Backtrack::PreferOnShot.Value && a->m_bOnShot != b->m_bOnShot)
+					return a->m_bOnShot > b->m_bOnShot;
 
-					return pLocal->m_vecOrigin().DistTo(a->m_vOrigin) < pLocal->m_vecOrigin().DistTo(b->m_vOrigin);
-				});
+				return pLocal->m_vecOrigin().DistToSqr(a->m_vOrigin) < pLocal->m_vecOrigin().DistToSqr(b->m_vOrigin);
+			});
 		else
 		{
 			std::sort(vReturn.begin(), vReturn.end(), [&](const TickRecord* a, const TickRecord* b) -> bool
-				{
-					if (Vars::Backtrack::PreferOnShot.Value && a->m_bOnShot != b->m_bOnShot)
-						return a->m_bOnShot > b->m_bOnShot;
+			{
+				if (Vars::Backtrack::PreferOnShot.Value && a->m_bOnShot != b->m_bOnShot)
+					return a->m_bOnShot > b->m_bOnShot;
 
-					const float flADelta = flCorrect - TICKS_TO_TIME(iServerTick - TIME_TO_TICKS(a->m_flSimTime + flTimeMod));
-					const float flBDelta = flCorrect - TICKS_TO_TIME(iServerTick - TIME_TO_TICKS(b->m_flSimTime + flTimeMod));
-					return fabsf(flADelta) < fabsf(flBDelta);
-				});
+				const float flADelta = flCorrect - TICKS_TO_TIME(iServerTick - TIME_TO_TICKS(a->m_flSimTime + flTimeMod));
+				const float flBDelta = flCorrect - TICKS_TO_TIME(iServerTick - TIME_TO_TICKS(b->m_flSimTime + flTimeMod));
+				return fabsf(flADelta) < fabsf(flBDelta);
+			});
 		}
 	}
 
@@ -231,7 +228,6 @@ void CBacktrack::MakeRecords()
 		vRecords.emplace_front(
 			pPlayer->m_flSimulationTime(),
 			pPlayer->m_vecOrigin(),
-			pPlayer->GetEyeAngles(),
 			pPlayer->m_vecMins(),
 			pPlayer->m_vecMaxs(),
 			m_mDidShoot[pPlayer->entindex()]
@@ -268,7 +264,6 @@ void CBacktrack::MakeRecords()
 					continue;
 
 				tRecord.m_vOrigin = tCurRecord.m_vOrigin;
-				tRecord.m_vAngles = tCurRecord.m_vAngles;
 				tRecord.m_vMins = tCurRecord.m_vMins;
 				tRecord.m_vMaxs = tCurRecord.m_vMaxs;
 				tRecord.m_bOnShot = tCurRecord.m_bOnShot;
@@ -299,7 +294,7 @@ void CBacktrack::CleanRecords()
 
 		//const int iOldSize = pRecords.size();
 
-		const float flDeadtime = I::GlobalVars->curtime + GetReal() - m_flMaxUnlag;
+		const int flDeadtime = I::GlobalVars->curtime + GetReal() - m_flMaxUnlag; // int ???
 		if (vRecords.size() > 1 && vRecords.back().m_flSimTime == std::numeric_limits<float>::max())
 			vRecords.pop_back();
 		while (!vRecords.empty())
@@ -357,46 +352,46 @@ void CBacktrack::AdjustPing(CNetChannel* pNetChan)
 {
 	m_nOldInSequenceNr = pNetChan->m_nInSequenceNr, m_nOldInReliableState = pNetChan->m_nInReliableState;
 
-	auto Set = [&]()
+	auto fSet = [&]()
+	{
+		if (!Vars::Backtrack::Latency.Value)
+			return 0.f;
+
+		auto pLocal = H::Entities.GetLocal();
+		if (!pLocal || !pLocal->m_iClass())
+			return 0.f;
+
+		static auto host_timescale = H::ConVars.FindVar("host_timescale");
+		float flTimescale = host_timescale->GetFloat();
+
+		static float flStaticReal = 0.f;
+		float flFake = GetWishFake(), flReal = TICKS_TO_TIME(pLocal->m_nTickBase() - m_nOldTickBase);
+		flStaticReal += (flReal + 5 * TICK_INTERVAL - flStaticReal) * 0.1f;
+
+		int nInReliableState = pNetChan->m_nInReliableState, nInSequenceNr = pNetChan->m_nInSequenceNr; float flLatency = 0.f;
+		for (auto& cSequence : m_dSequences)
 		{
-			if (!Vars::Backtrack::Latency.Value)
-				return 0.f;
+			nInReliableState = cSequence.m_nInReliableState;
+			nInSequenceNr = cSequence.m_nSequenceNr;
+			flLatency = (I::GlobalVars->realtime - cSequence.m_flTime) * flTimescale - TICK_INTERVAL;
 
-			auto pLocal = H::Entities.GetLocal();
-			if (!pLocal || !pLocal->m_iClass())
-				return 0.f;
+			if (flLatency > flFake || m_nLastInSequenceNr >= cSequence.m_nSequenceNr || flLatency > m_flMaxUnlag - flStaticReal)
+				break;
+		}
+		if (flLatency > 1.f) // hacky failsafe
+			return 0.f;
 
-			static auto host_timescale = H::ConVars.FindVar("host_timescale");
-			float flTimescale = host_timescale->GetFloat();
+		pNetChan->m_nInReliableState = nInReliableState;
+		pNetChan->m_nInSequenceNr = nInSequenceNr;
+		return flLatency;
+	};
 
-			static float flStaticReal = 0.f;
-			float flFake = GetWishFake(), flReal = TICKS_TO_TIME(pLocal->m_nTickBase() - m_nOldTickBase);
-			flStaticReal += (flReal + 5 * TICK_INTERVAL - flStaticReal) * 0.1f;
-
-			int nInReliableState = pNetChan->m_nInReliableState, nInSequenceNr = pNetChan->m_nInSequenceNr; float flLatency = 0.f;
-			for (auto& cSequence : m_dSequences)
-			{
-				nInReliableState = cSequence.m_nInReliableState;
-				nInSequenceNr = cSequence.m_nSequenceNr;
-				flLatency = (I::GlobalVars->realtime - cSequence.m_flTime) * flTimescale - TICK_INTERVAL;
-
-				if (flLatency > flFake || m_nLastInSequenceNr >= cSequence.m_nSequenceNr || flLatency > m_flMaxUnlag - flStaticReal)
-					break;
-			}
-			if (flLatency > 1.f) // hacky failsafe
-				return 0.f;
-
-			pNetChan->m_nInReliableState = nInReliableState;
-			pNetChan->m_nInSequenceNr = nInSequenceNr;
-			return flLatency;
-		};
-
-	auto flLatency = Set();
+	auto flLatency = fSet();
 	m_nLastInSequenceNr = pNetChan->m_nInSequenceNr;
 
 	if (Vars::Backtrack::Latency.Value || m_flFakeLatency)
 	{
-		m_flFakeLatency = Math::Clamp(m_flFakeLatency + (flLatency - m_flFakeLatency) * 0.1f, m_flFakeLatency - TICK_INTERVAL, m_flFakeLatency + TICK_INTERVAL);
+		m_flFakeLatency = std::clamp(m_flFakeLatency + (flLatency - m_flFakeLatency) * 0.1f, m_flFakeLatency - TICK_INTERVAL, m_flFakeLatency + TICK_INTERVAL);
 		if (!flLatency && m_flFakeLatency < TICK_INTERVAL)
 			m_flFakeLatency = 0.f;
 	}

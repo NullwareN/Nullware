@@ -1,41 +1,42 @@
 #pragma once
-#ifndef NULLWARE_CUSTOM_FONTS
-#define NULLWARE_CUSTOM_FONTS
-#endif
 #include "../../SDK/SDK.h"
-#include <imgui/imgui.h>
-#include <imgui/imgui_impl_dx9.h>
+#include <ImGui/imgui_impl_dx9.h>
+#include <ImGui/imgui.h>
 
-class CRender {
+class CRender
+{
 public:
-  void Render(IDirect3DDevice9 *pDevice);
-  void Initialize(IDirect3DDevice9 *pDevice);
+	void Render(IDirect3DDevice9* pDevice);
+	void Initialize(IDirect3DDevice9* pDevice);
+	void Reload();
 
-  void LoadColors();
-  void LoadFonts();
-  void LoadStyle();
+	void LoadColors();
+	void LoadFonts();
+	void LoadStyle();
 
-  int Cursor = 2;
+	int Cursor = 2;
 
-  // Colors
-  ImColor Accent = {};
-  ImColor Background0 = {};
-  ImColor Background0p5 = {};
-  ImColor Background1 = {};
-  ImColor Background1p5 = {};
-  ImColor Background1p5L = {};
-  ImColor Background2 = {};
-  ImColor Inactive = {};
-  ImColor Active = {};
+	// Colors
+	ImColor Accent = {};
+	ImColor Background0 = {};
+	ImColor Background0p5 = {};
+	ImColor Background1 = {};
+	ImColor Background1p5 = {};
+	ImColor Background1p5L = {};
+	ImColor Background2 = {};
+	ImColor Inactive = {};
+	ImColor Active = {};
 
-  // Fonts
-  ImFont *FontSmall = nullptr;
-  ImFont *FontRegular = nullptr;
-  ImFont *FontBold = nullptr;
-  ImFont *FontLarge = nullptr;
-  ImFont *FontMono = nullptr;
+	// Fonts
+	ImFont* FontSmall = nullptr;
+	ImFont* FontRegular = nullptr;
+	ImFont* FontBold = nullptr;
+	ImFont* FontLarge = nullptr;
+	ImFont* FontMono = nullptr;
 
-  ImFont *IconFont = nullptr;
+	ImFont* IconFont = nullptr;
+
+	bool m_bLoaded = false;
 };
 
 ADD_FEATURE(CRender, Render);
