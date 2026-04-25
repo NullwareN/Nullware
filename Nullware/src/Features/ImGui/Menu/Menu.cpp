@@ -12,6 +12,7 @@
 #include "../../Output/Output.h"
 #include "../../World/World.h"
 #include "../../Simulation/ProjectileSimulation/ProjectileSimulation.h"
+#include "../../Lua/LuaFeature.h"
 
 void CMenu::DrawMenu()
 {
@@ -76,7 +77,7 @@ void CMenu::DrawMenu()
 		RenderTwoToneBackground(flSize, {}, F::Render.Background1, F::Render.Background2, 0.f, false);
 		PopClipRect();
 
-		static int iTab = 0, iAimbotTab = 0, iVisualsTab = 0, iLogsTab = 0, iSettingsTab = 0;
+		static int iTab = 0, iAimbotTab = 0, iVisualsTab = 0, iLuaTab = 0, iLogsTab = 0, iSettingsTab = 0;
 		PushFont(F::Render.FontBold);
 		FTabs(
 			{
@@ -84,14 +85,15 @@ void CMenu::DrawMenu()
 				{ "HVH" },
 				{ "VISUALS", "ESP", "MISC##", "MENU" },
 				{ "MISC" },
+				{ "LUA" },
 				{ "LOGS", "PLAYERLIST", "SETTINGS##", "OUTPUT" },
 				{ "SETTINGS", "CONFIG", "BINDS", "MATERIALS", "EXTRA" }
 			},
-			{ &iTab, &iAimbotTab, nullptr, &iVisualsTab, nullptr, &iLogsTab, &iSettingsTab },
+			{ &iTab, &iAimbotTab, nullptr, &iVisualsTab, nullptr, &iLuaTab, &iLogsTab, &iSettingsTab },
 			{ flSize - H::Draw.Scale(16), H::Draw.Scale(36) },
 			{ H::Draw.Scale(8), H::Draw.Scale(8) + flOffset },
 			FTabsEnum::Vertical | FTabsEnum::HorizontalIcons | FTabsEnum::AlignLeft | FTabsEnum::BarLeft,
-			{ { ICON_MD_PERSON }, { ICON_MD_BOLT }, { ICON_MD_VISIBILITY }, { ICON_MD_ARTICLE }, { ICON_MD_IMPORT_CONTACTS }, { ICON_MD_SETTINGS } },
+			{ { ICON_MD_PERSON }, { ICON_MD_BOLT }, { ICON_MD_VISIBILITY }, { ICON_MD_ARTICLE }, { ICON_MD_CODE }, { ICON_MD_IMPORT_CONTACTS }, { ICON_MD_SETTINGS } },
 			{ H::Draw.Scale(10), 0 }, {},
 			{}, { H::Draw.Scale(22), 0 }
 		);
@@ -122,8 +124,9 @@ void CMenu::DrawMenu()
 				case 1: MenuHVH(); break;
 				case 2: MenuVisuals(iVisualsTab); break;
 				case 3: MenuMisc(); break;
-				case 4: MenuLogs(iLogsTab); break;
-				case 5: MenuSettings(iSettingsTab); break;
+				case 4: MenuLua(iLuaTab); break;
+				case 5: MenuLogs(iLogsTab); break;
+				case 6: MenuSettings(iSettingsTab); break;
 				}
 			}
 			else
@@ -1366,6 +1369,84 @@ void CMenu::MenuMisc(int iTab)
 					FToggle(Vars::Misc::Sound::HitsoundAlways, FToggleEnum::Left);
 					FToggle(Vars::Misc::Sound::RemoveDSP, FToggleEnum::Right);
 					FToggle(Vars::Misc::Sound::GiantWeaponSounds);
+				} EndSection();
+			}
+			EndTable();
+		}
+		break;
+	}
+	}
+}
+
+void CMenu::MenuLua(int iTab)
+{
+	using namespace ImGui;
+
+	switch (iTab)
+	{
+	case 0:
+	{
+		if (BeginTable("LuaTable", 2))
+		{
+			/* Column 1 - Scripts */
+			TableNextColumn();
+			{
+				if (Section("Scripts", 8))
+				{
+					// Snapshot scripts + state while holding mutex, then release
+					// before calling Load/Unload (they also lock — avoids deadlock)
+					std::vector<std::string> vScripts;
+					std::vector<bool> vActive;
+					{
+						std::lock_guard<std::recursive_mutex> tLock(F::Lua.m_Mut);
+						vScripts = F::Lua.m_vScripts;
+						for (auto& s : vScripts)
+							vActive.push_back(F::Lua.m_mActiveScripts[s]);
+					}
+
+					if (vScripts.empty())
+					{
+						PushStyleColor(ImGuiCol_Text, F::Render.Inactive.Value);
+						FText("No scripts found. Click Refresh.");
+						PopStyleColor();
+					}
+					else
+					{
+						for (size_t i = 0; i < vScripts.size(); i++)
+						{
+							bool bActive = vActive[i];
+							if (FToggle(vScripts[i].c_str(), &bActive))
+							{
+								if (bActive) F::Lua.LoadScript(vScripts[i]);
+								else         F::Lua.UnloadScript(vScripts[i]);
+							}
+						}
+					}
+				} EndSection();
+			}
+			/* Column 2 - Actions */
+			TableNextColumn();
+			{
+				if (Section("Actions", 8))
+				{
+					if (FButton("Refresh"))
+						F::Lua.RefreshScripts();
+					if (FButton("Open Folder"))
+						F::Lua.OpenDirectory();
+
+					std::vector<std::string> vToUnload;
+					{
+						std::lock_guard<std::recursive_mutex> tLock(F::Lua.m_Mut);
+						for (auto& [sName, bState] : F::Lua.m_mActiveScripts)
+							if (bState) vToUnload.push_back(sName);
+					}
+					PushTransparent(vToUnload.empty());
+					{
+						if (FButton("Unload All"))
+							for (auto& s : vToUnload)
+								F::Lua.UnloadScript(s);
+					}
+					PopTransparent();
 				} EndSection();
 			}
 			EndTable();
