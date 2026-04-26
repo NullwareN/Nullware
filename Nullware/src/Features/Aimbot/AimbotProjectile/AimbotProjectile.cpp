@@ -263,6 +263,9 @@ float CAimbotProjectile::GetSplashRadius(CBaseEntity* pProjectile, CTFWeaponBase
 
 static inline float ArmTime(CTFWeaponBase* pWeapon)
 {
+	if (!pWeapon)
+		return 0.f;
+
 	if (Vars::Aimbot::Projectile::Modifiers.Value & Vars::Aimbot::Projectile::ModifiersEnum::UseArmTime && pWeapon->GetWeaponID() == TF_WEAPON_PIPEBOMBLAUNCHER)
 	{
 		static auto tf_grenadelauncher_livetime = H::ConVars.FindVar("tf_grenadelauncher_livetime");
@@ -285,7 +288,7 @@ static inline bool ShouldLob(MoveStorage& tMoveStorage, Info_t& tInfo)
 
 static inline bool AirSplash(CTFWeaponBase* pWeapon)
 {
-	if (!(Vars::Aimbot::Projectile::Modifiers.Value & Vars::Aimbot::Projectile::ModifiersEnum::AirSplash))
+	if (!pWeapon || !(Vars::Aimbot::Projectile::Modifiers.Value & Vars::Aimbot::Projectile::ModifiersEnum::AirSplash))
 		return false;
 
 	switch (pWeapon->GetWeaponID())
@@ -780,7 +783,7 @@ std::vector<Point_t> CAimbotProjectile::GetSplashPoints(Vec3 vOrigin, std::vecto
 	m_tInfo.m_pTarget->m_vPos = vOrigin;
 	Vec3 vTargetEye = vOrigin + m_tInfo.m_vTargetEye;
 	float flRadiusSqr = powf(m_tInfo.m_flRadius, 2), flRadiusAirSqr = flRadiusSqr;
-	if (Vars::Aimbot::Projectile::Modifiers.Value & Vars::Aimbot::Projectile::ModifiersEnum::AirSplash && m_tInfo.m_pWeapon->GetWeaponID() == TF_WEAPON_PIPEBOMBLAUNCHER)
+	if (Vars::Aimbot::Projectile::Modifiers.Value & Vars::Aimbot::Projectile::ModifiersEnum::AirSplash && m_tInfo.m_pWeapon && m_tInfo.m_pWeapon->GetWeaponID() == TF_WEAPON_PIPEBOMBLAUNCHER)
 	{
 		static auto tf_grenadelauncher_livetime = H::ConVars.FindVar("tf_grenadelauncher_livetime");
 		static auto tf_sticky_radius_ramp_time = H::ConVars.FindVar("tf_sticky_radius_ramp_time");
@@ -1067,8 +1070,10 @@ void CAimbotProjectile::CalculateAngle(const Vec3& vLocalPos, const Vec3& vTarge
 		}
 		else
 		{
-			switch (m_tInfo.m_pWeapon->GetWeaponID())
+			if (m_tInfo.m_pWeapon)
 			{
+				switch (m_tInfo.m_pWeapon->GetWeaponID())
+				{
 			case TF_WEAPON_ROCKETLAUNCHER:
 			case TF_WEAPON_ROCKETLAUNCHER_DIRECTHIT:
 			case TF_WEAPON_PARTICLE_CANNON:
@@ -1157,7 +1162,7 @@ bool CAimbotProjectile::TestAngle(const Vec3& vPoint, const Vec3& vAngles, int i
 		if (Vars::Visuals::Trajectory::ForwardRedirect.Value)
 			s_mTraceCount[__FUNCTION__": setup trace"]++;
 	}
-	else
+	else if (pWeapon)
 	{
 		switch (pWeapon->GetWeaponID())
 		{
@@ -1188,7 +1193,7 @@ bool CAimbotProjectile::TestAngle(const Vec3& vPoint, const Vec3& vAngles, int i
 	filter.iPlayer = iType == PointTypeEnum::Direct ? PLAYER_DEFAULT : PLAYER_NONE;
 	filter.bMisc = iType == PointTypeEnum::Direct;
 	int nMask = MASK_SOLID;
-	if (iType == PointTypeEnum::Direct && F::AimbotGlobal.FriendlyFire())
+	if (iType == PointTypeEnum::Direct && F::AimbotGlobal.FriendlyFire() && pWeapon)
 	{
 		switch (pWeapon->GetWeaponID())
 		{	// only weapons that actually hit teammates properly
@@ -2084,8 +2089,11 @@ void CAimbotProjectile::Run(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, CUserCmd*
 bool CAimbotProjectile::TestAngle(CBaseEntity* pProjectile, const Vec3& vPoint, Vec3& vAngles, int iSimTime, uint8_t iType, uint8_t iFlags)
 {
 	auto pLocal = m_tInfo.m_pLocal;
-	auto pWeapon = m_tInfo.m_pWeapon;
+	auto pWeapon = pLocal ? pLocal->m_hActiveWeapon()->As<CTFWeaponBase>() : nullptr;
 	auto& tTarget = *m_tInfo.m_pTarget;
+	
+	if (!pWeapon)
+		return false;
 
 	m_tProjInfo = {};
 	F::ProjSim.GetInfo(pProjectile, m_tProjInfo);
